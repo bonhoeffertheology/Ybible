@@ -35,7 +35,6 @@
     </script>
 
     <style>
-        /* 기본 라이트(데이) 모드 색상 테마 */
         :root {
             --primary: #2563eb;
             --primary-hover: #1d4ed8;
@@ -56,7 +55,6 @@
             --btn-sub-hover: #e2e8f0;
         }
 
-        /* 다크 모드 색상 테마 (배경 검정, 글씨 하양) */
         body.dark-mode {
             --primary: #38bdf8;
             --primary-hover: #7dd3fc;
@@ -306,6 +304,20 @@
         .action-bar button:hover {
             background: #3f3f46;
         }
+
+        /* 로딩 모달 */
+        #loadingModal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            font-size: 16px;
+        }
     </style>
 </head>
 <body>
@@ -323,11 +335,10 @@
         </div>
 
         <div class="header-right">
-            <!-- 테마 전환 버튼 -->
             <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">🌓 다크모드</button>
             <button id="pwaInstallBtn" class="btn-primary" style="display: none; background: #059669;">📱 앱 설치</button>
-            <input type="file" id="fileInput" accept=".txt,.lfa" style="display: none;">
-            <button onclick="document.getElementById('fileInput').click()">+ 파일 추가</button>
+            <input type="file" id="fileInput" accept=".txt,.lfa,.bbl,.dat" style="display: none;">
+            <button onclick="document.getElementById('fileInput').click()" class="btn-primary">+ 성경 파일 추가</button>
         </div>
     </header>
 
@@ -352,8 +363,13 @@
         </div>
     </div>
 
+    <div id="loadingModal">
+        <div style="font-size: 20px; font-weight: bold; margin-bottom: 10px;">성경 데이터 파싱 및 설치 중...</div>
+        <div id="loadingStatus">잠시만 기다려주세요.</div>
+    </div>
+
     <script>
-        // --- 테마(다크/데이 모드) 관리 ---
+        // --- 1. 테마 관리 ---
         function initTheme() {
             const savedTheme = localStorage.getItem('ybible_theme') || 'light';
             if (savedTheme === 'dark') {
@@ -377,22 +393,20 @@
             }
         }
 
-        // PWA 설치 버튼 클릭 처리
+        // --- 2. PWA 설치 프롬프트 ---
         const installBtn = document.getElementById('pwaInstallBtn');
         installBtn.addEventListener('click', async () => {
             if (deferredPrompt) {
                 deferredPrompt.prompt();
                 const { outcome } = await deferredPrompt.userChoice;
-                if (outcome === 'accepted') {
-                    installBtn.style.display = 'none';
-                }
+                if (outcome === 'accepted') installBtn.style.display = 'none';
                 deferredPrompt = null;
             } else {
                 alert("브라우저 메뉴(점 3개)에서 '홈 화면에 추가' 또는 '앱 설치'를 눌러주세요.");
             }
         });
 
-        // 성경 기본 데이터
+        // --- 3. 성경 메타데이터 & 약어 사전 (LFA 및 모든 포맷 완벽 매핑) ---
         const BIBLE_BOOKS = [
             "창세기", "출애굽기", "레위기", "민수기", "신명기", "여호수아", "사사기", "룻기", "사무엘상", "사무엘하",
             "열왕기상", "열왕기하", "역대상", "역대하", "에스라", "느헤미야", "에스더", "욥기", "시편", "잠언",
@@ -402,6 +416,75 @@
             "빌립보서", "골로새서", "데살로니가전서", "데살로니가후서", "디모데전서", "디모데후서", "디도서", "빌레몬서", "히브리서",
             "야고보서", "베드로전서", "베드로후서", "요한일서", "요한이서", "요한삼서", "유다서", "요한계시록"
         ];
+
+        const BOOK_ALIAS = {
+            "창":0,"창세":0,"창세기":0,"GEN":0,"GN":0,
+            "출":1,"출애":1,"출애굽":1,"출애굽기":1,"EXO":1,"EX":1,
+            "레":2,"레위":2,"레위기":2,"LEV":2,"LV":2,
+            "민":3,"민수":3,"민수기":3,"NUM":3,"NM":3,
+            "신":4,"신명":4,"신명기":4,"DEU":4,"DT":4,
+            "수":5,"여호":5,"여호수아":5,"JOS":5,"JS":5,
+            "삿":6,"사사":6,"사사기":6,"JDG":6,"JG":6,
+            "룻":7,"룻기":7,"RUT":7,"RT":7,
+            "삼상":8,"사무엘상":8,"1SA":8,"1SAM":8,
+            "삼하":9,"사무엘하":9,"2SA":9,"2SAM":9,
+            "왕상":10,"열왕기상":10,"1KI":10,"1KGS":10,
+            "왕하":11,"열왕기하":11,"2KI":11,"2KGS":11,
+            "대상":12,"역대상":12,"1CH":12,"1CHR":12,
+            "대하":13,"역대하":13,"2CH":13,"2CHR":13,
+            "스":14,"에스라":14,"EZR":14,
+            "느":15,"느헤미야":15,"NEH":15,
+            "에":16,"에스더":16,"EST":16,
+            "욥":17,"욥기":17,"JOB":17,
+            "시":18,"시편":18,"PSA":18,"PS":18,
+            "잠":19,"잠언":19,"PRO":19,"PRV":19,
+            "전":20,"전도":20,"전도서":20,"ECC":20,"EC":20,
+            "아":21,"아가":21,"SNG":21,"SOS":21,
+            "사":22,"이사야":22,"ISA":22,
+            "렘":23,"예레미야":23,"JER":23,
+            "애":24,"예레미야애가":24,"애가":24,"LAM":24,
+            "겔":25,"에스겔":25,"EZK":25,"EZE":25,
+            "단":26,"다니엘":26,"DAN":26,
+            "호":27,"호세아":27,"HOS":27,
+            "욜":28,"요엘":28,"JOL":28,"JL":28,
+            "암":29,"아모스":29,"AMO":29,"AM":29,
+            "옵":30,"오바댜":30,"OBA":30,"OB":30,
+            "욘":31,"요나":31,"JON":31,"JH":31,
+            "미":32,"미가":32,"MIC":32,"MC":32,
+            "나":33,"나훔":33,"NAM":33,"NA":33,
+            "합":34,"하박국":34,"HAB":34,"HB":34,
+            "습":35,"스바냐":35,"ZEP":35,"ZP":35,
+            "학":36,"학개":36,"HAG":36,"HG":36,
+            "슥":37,"스가랴":37,"ZEC":37,"ZC":37,
+            "말":38,"말라기":38,"MAL":38,"ML":38,
+            "마":39,"마태":39,"마태복음":39,"MAT":39,"MT":39,
+            "막":40,"마가":40,"마가복음":40,"MRK":40,"MK":40,
+            "눅":41,"누가":41,"누가복음":41,"LUK":41,"LK":41,
+            "요":42,"요한":42,"요한복음":42,"JHN":42,"JN":42,
+            "행":43,"사도":43,"사도행전":43,"ACT":43,"AC":43,
+            "롬":44,"로마":44,"로마서":44,"ROM":44,"RM":44,
+            "고전":45,"고린도전서":45,"1CO":45,"1COR":45,
+            "고후":46,"고린도후서":46,"2CO":46,"2COR":46,
+            "갈":47,"갈라디아서":47,"GAL":47,"GL":47,
+            "엡":48,"에베소서":48,"EPH":48,"EP":48,
+            "빌":49,"빌립보서":49,"PHP":49,"PHIL":49,
+            "골":50,"골로새서":50,"COL":50,
+            "살전":51,"데살로니가전서":51,"1TH":51,"1THES":51,
+            "살후":52,"데살로니가후서":52,"2TH":52,"2THES":52,
+            "딤전":53,"디모데전서":53,"1TI":53,"1TIM":53,
+            "딤후":54,"디모데후서":54,"2TI":54,"2TIM":54,
+            "딛":55,"디도서":55,"TIT":55,
+            "몬":56,"빌레몬서":56,"PHM":56,
+            "히":57,"히브리서":57,"HEB":57,
+            "약":58,"야고보서":58,"JAS":58,"JM":58,
+            "벧전":59,"베드로전서":59,"1PE":59,"1PET":59,
+            "벧후":60,"베드로후서":60,"2PE":60,"2PET":60,
+            "요일":61,"요한일서":61,"1JN":61,"1JOHN":61,
+            "요이":62,"요한이서":62,"2JN":62,"2JOHN":62,
+            "요삼":63,"요한삼서":63,"3JN":63,"3JOHN":63,
+            "유":64,"유다서":64,"JUD":64,"JD":64,
+            "계":65,"요한계시록":65,"REV":65,"RV":65
+        };
 
         const CHAPTER_COUNTS = [
             50, 40, 27, 36, 34, 24, 21, 4, 31, 24, 22, 25, 29, 36, 10, 13, 10, 42, 150, 31,
@@ -520,6 +603,10 @@
 
                 list.forEach(item => {
                     const label = document.createElement("label");
+                    label.style.display = "inline-flex";
+                    label.style.alignItems = "center";
+                    label.style.marginRight = "10px";
+
                     const chk = document.createElement("input");
                     chk.type = "checkbox";
                     chk.value = item.id;
@@ -588,7 +675,7 @@
             const sortedVerseNums = Array.from(versesMap.keys()).sort((a, b) => a - b);
 
             if (sortedVerseNums.length === 0) {
-                container.innerHTML = "<p style='text-align:center; color:var(--text-muted); margin-top:30px;'>해당 장의 구절 데이터가 없습니다. 상단에서 파일을 추가해주세요.</p>";
+                container.innerHTML = "<p style='text-align:center; color:var(--text-muted); margin-top:30px;'>해당 장의 구절 데이터가 없습니다. 상단 [+ 성경 파일 추가]를 눌러 역본을 추가해주세요.</p>";
                 return;
             }
 
@@ -605,7 +692,7 @@
                     </div>
                 `;
                 activeTranslations.forEach(tId => {
-                    const text = vData[tId] || "(구절 정보 없음)";
+                    const text = vData[tId] || "(해당 구절 없음)";
                     innerHTML += `
                         <div class="translation-row" data-trans="${tId}">
                             <span class="translation-tag">${tId}</span>${text}
@@ -817,56 +904,100 @@
             }
         }
 
+        // --- 4. 다중 인코딩 지원 & 만능 LFA/TXT 파서 엔진 ---
         document.getElementById("fileInput").addEventListener("change", async (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
-            const versionName = prompt("추가할 성경 역본의 이름을 입력하세요:", file.name.replace(/\.[^/.]+$/, ""));
-            if (!versionName) return;
+            const modal = document.getElementById("loadingModal");
+            const statusText = document.getElementById("loadingStatus");
+            modal.style.display = "flex";
+            statusText.textContent = "파일을 읽고 인코딩을 분석하는 중...";
 
-            const transId = "CUST_" + Date.now();
-            const text = await file.text();
-            
-            const verses = parseBibleText(text, transId);
+            try {
+                const defaultName = file.name.replace(/\.[^/.]+$/, "");
+                const arrayBuffer = await file.arrayBuffer();
 
-            if (verses.length === 0) {
-                alert("구절을 파싱하지 못했습니다. 파일 포맷을 확인해주세요.\n(지원 예시: '창1:1 본문', '창세기 1:1 본문', 'GEN|1|1|본문')");
-                return;
+                // 1단계: EUC-KR / CP949 및 UTF-8 자동 디코딩 시도
+                let text = "";
+                let decoder = new TextDecoder("euc-kr");
+                text = decoder.decode(arrayBuffer);
+                
+                // 한글 깨짐 여부 검사 (EUC-KR로 안 읽힐 경우 UTF-8 시도)
+                if (!/[가-힣]/.test(text.slice(0, 500))) {
+                    decoder = new TextDecoder("utf-8");
+                    text = decoder.decode(arrayBuffer);
+                }
+
+                statusText.textContent = "성경 구절을 파싱하는 중...";
+                const transId = "VER_" + Date.now();
+                const verses = parseBibleAuto(text, transId);
+
+                if (verses.length === 0) {
+                    modal.style.display = "none";
+                    alert("성경 구절을 파싱하지 못했습니다. 파일 내용의 포맷을 확인해 주세요.");
+                    return;
+                }
+
+                const versionName = prompt(`파싱 완료! (${verses.length}개 구절)\n역본 이름을 입력하세요:`, defaultName) || defaultName;
+
+                statusText.textContent = `데이터베이스에 ${verses.length}개 구절을 저장하는 중...`;
+
+                // 2단계: IndexedDB 대용량 청크 분할 고속 저장 (Batch Insertion)
+                await saveVersesToDB(transId, versionName, verses);
+
+                modal.style.display = "none";
+                alert(`'${versionName}' (${verses.length}개 구절) 추가가 완료되었습니다!`);
+                
+                if (!activeTranslations.includes(transId)) {
+                    activeTranslations.push(transId);
+                }
+                await updateTranslationCheckboxes();
+                renderVerses();
+
+            } catch (err) {
+                modal.style.display = "none";
+                alert("파일 처리 중 오류가 발생했습니다: " + err.message);
+                console.error(err);
+            } finally {
+                e.target.value = "";
             }
-
-            const tx = db.transaction(["translations", "verses"], "readwrite");
-            tx.objectStore("translations").add({ id: transId, name: versionName });
-            
-            const vStore = tx.objectStore("verses");
-            verses.forEach(v => vStore.add(v));
-
-            tx.oncomplete = () => {
-                alert(`'${versionName}' 역본(${verses.length} 구절)이 등록되었습니다.`);
-                updateTranslationCheckboxes();
-            };
         });
 
-        function parseBibleText(rawText, transId) {
-            const lines = rawText.split(/\r?\n/);
+        // 만능 파싱 함수 (다양한 LFA / BBL / TXT 포맷 지원)
+        function parseBibleAuto(rawText, transId) {
+            const lines = rawText.split(/[\r\n]+/);
             const parsed = [];
 
-            const regexStandard = /^([가-힣a-zA-Z]+)\s*(\d+)[:\s](\d+)\s+(.+)$/;
-            const regexPipe = /^([가-힣a-zA-Z0-9]+)\|(\d+)\|(\d+)\|(.+)$/;
+            // 정규식 패턴들
+            // 패턴 1: 창1:1 본문 또는 창세기 1:1 본문
+            const reg1 = /^([가-힣a-zA-Z0-9]+)\s*(\d+)[:\s_](\d+)[\s\t]+(.+)$/;
+            // 패턴 2: 창1:1본문 (공백 없이 붙은 형태)
+            const reg2 = /^([가-힣a-zA-Z]+)(\d+)[:_](\d+)(.+)$/;
+            // 패턴 3: 1|1|1|본문 또는 GEN|1|1|본문 (구분자 형태)
+            const reg3 = /^([가-힣a-zA-Z0-9]+)[\|\t,;](\d+)[\|\t,;](\d+)[\|\t,;](.+)$/;
 
-            for (const line of lines) {
-                const trimmed = line.trim();
-                if (!trimmed) continue;
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line || line.startsWith("#") || line.startsWith("//")) continue;
 
-                let match = trimmed.match(regexStandard) || trimmed.match(regexPipe);
+                let match = line.match(reg1) || line.match(reg3) || line.match(reg2);
                 if (match) {
-                    const rawBook = match[1];
-                    const ch = parseInt(match[2]);
-                    const ver = parseInt(match[3]);
-                    const content = match[4];
+                    let bookKey = match[1].trim();
+                    let ch = parseInt(match[2]);
+                    let ver = parseInt(match[3]);
+                    let content = match[4].trim();
 
-                    const bookIdx = BIBLE_BOOKS.findIndex(b => b.startsWith(rawBook) || rawBook.startsWith(b.slice(0, 2)));
-                    
-                    if (bookIdx !== -1) {
+                    let bookIdx = -1;
+                    if (!isNaN(bookKey) && parseInt(bookKey) >= 1 && parseInt(bookKey) <= 66) {
+                        bookIdx = parseInt(bookKey) - 1;
+                    } else if (BOOK_ALIAS[bookKey] !== undefined) {
+                        bookIdx = BOOK_ALIAS[bookKey];
+                    } else {
+                        bookIdx = BIBLE_BOOKS.findIndex(b => b.startsWith(bookKey) || bookKey.startsWith(b.slice(0, 2)));
+                    }
+
+                    if (bookIdx >= 0 && bookIdx < 66 && ch > 0 && ver > 0 && content) {
                         parsed.push({
                             id: `${transId}_${bookIdx}_${ch}_${ver}`,
                             translationId: transId,
@@ -881,6 +1012,34 @@
             return parsed;
         }
 
+        // 고속 청크 저장
+        async function saveVersesToDB(transId, versionName, verses) {
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(["translations", "verses"], "readwrite");
+                tx.objectStore("translations").add({ id: transId, name: versionName });
+
+                const vStore = tx.objectStore("verses");
+                const chunkSize = 2000;
+                let i = 0;
+
+                function putNextChunk() {
+                    const limit = Math.min(i + chunkSize, verses.length);
+                    for (; i < limit; i++) {
+                        vStore.put(verses[i]);
+                    }
+                    if (i < verses.length) {
+                        setTimeout(putNextChunk, 0);
+                    }
+                }
+
+                putNextChunk();
+
+                tx.oncomplete = () => resolve();
+                tx.onerror = (e) => reject(e);
+            });
+        }
+
+        // 초기 시작 진입점
         window.addEventListener("DOMContentLoaded", async () => {
             initTheme();
             await initDB();
