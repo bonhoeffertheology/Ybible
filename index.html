@@ -5,27 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Ybible 성경뷰어</title>
 
-    <!-- PWA 메타데이터 -->
-    <link rel="manifest" href="/Ybible/manifest.json">
+    <!-- PWA 매니페스트 및 아이콘 설정 -->
+    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0f172a">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Ybible">
-    <link rel="apple-touch-icon" href="/Ybible/icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
 
     <script>
-        // 서비스 워커 즉시 등록
+        // 서비스 워커 등록
         let deferredPrompt = null;
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/Ybible/sw.js', { scope: '/Ybible/' })
-                    .then(reg => console.log('SW Registered!', reg))
-                    .catch(err => console.log('SW Failed!', err));
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => console.log('SW Registered successfully:', reg))
+                    .catch(err => console.log('SW Registration error:', err));
             });
         }
 
-        // 브라우저 설치 이벤트 가로채기
+        // PWA 설치 이벤트 감지
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             deferredPrompt = e;
@@ -35,6 +35,7 @@
     </script>
 
     <style>
+        /* 기본 라이트(데이) 모드 색상 테마 */
         :root {
             --primary: #2563eb;
             --primary-hover: #1d4ed8;
@@ -44,7 +45,36 @@
             --text-main: #1e293b;
             --text-muted: #64748b;
             --highlight: #dbeafe;
+            --tag-bg: #e2e8f0;
+            --tag-text: #475569;
             --search-mark: #fef08a;
+            --search-mark-text: #1e293b;
+            --banner-bg: #e0f2fe;
+            --banner-border: #bae6fd;
+            --banner-text: #0369a1;
+            --btn-sub-bg: #f1f5f9;
+            --btn-sub-hover: #e2e8f0;
+        }
+
+        /* 다크 모드 색상 테마 (배경 검정, 글씨 하양) */
+        body.dark-mode {
+            --primary: #38bdf8;
+            --primary-hover: #7dd3fc;
+            --bg: #000000;
+            --surface: #121212;
+            --border: #27272a;
+            --text-main: #ffffff;
+            --text-muted: #a1a1aa;
+            --highlight: #1e293b;
+            --tag-bg: #27272a;
+            --tag-text: #e4e4e7;
+            --search-mark: #854d0e;
+            --search-mark-text: #fef08a;
+            --banner-bg: #1e293b;
+            --banner-border: #334155;
+            --banner-text: #38bdf8;
+            --btn-sub-bg: #1e293b;
+            --btn-sub-hover: #27272a;
         }
 
         * {
@@ -53,6 +83,7 @@
             padding: 0;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             -webkit-tap-highlight-color: transparent;
+            transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
         }
 
         body {
@@ -93,6 +124,8 @@
             border-radius: 6px;
             font-size: 14px;
             outline: none;
+            background: var(--surface);
+            color: var(--text-main);
         }
 
         input[type="text"]:focus {
@@ -104,6 +137,7 @@
             border: 1px solid var(--border);
             border-radius: 6px;
             background: var(--surface);
+            color: var(--text-main);
             font-size: 14px;
             cursor: pointer;
             white-space: nowrap;
@@ -111,13 +145,27 @@
 
         button.btn-primary {
             background: var(--primary);
-            color: white;
+            color: #ffffff;
             border: none;
             font-weight: 500;
         }
 
         button.btn-primary:hover {
             background: var(--primary-hover);
+        }
+
+        .theme-toggle-btn {
+            background: var(--btn-sub-bg);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .theme-toggle-btn:hover {
+            background: var(--btn-sub-hover);
         }
 
         .controls {
@@ -139,13 +187,13 @@
 
         .view-banner {
             padding: 8px 16px;
-            background: #e0f2fe;
-            border-bottom: 1px solid #bae6fd;
+            background: var(--banner-bg);
+            border-bottom: 1px solid var(--banner-border);
             display: flex;
             justify-content: space-between;
             align-items: center;
             font-size: 13px;
-            color: #0369a1;
+            color: var(--banner-text);
         }
 
         .container {
@@ -161,11 +209,10 @@
             margin-bottom: 8px;
             padding: 12px 16px;
             cursor: pointer;
-            transition: background 0.15s ease, border-color 0.15s ease;
         }
 
         .verse-card:hover {
-            border-color: #cbd5e1;
+            border-color: var(--text-muted);
         }
 
         .verse-card.selected {
@@ -190,26 +237,27 @@
             padding: 2px 8px;
             border: 1px solid var(--border);
             border-radius: 4px;
-            background: #f1f5f9;
+            background: var(--btn-sub-bg);
             color: var(--text-muted);
             cursor: pointer;
         }
 
         .jump-btn:hover {
-            background: #e2e8f0;
+            background: var(--btn-sub-hover);
             color: var(--text-main);
         }
 
         .translation-row {
-            margin-top: 4px;
+            margin-top: 6px;
             line-height: 1.6;
             word-break: break-all;
+            color: var(--text-main);
         }
 
         .translation-tag {
             font-size: 11px;
-            background: #e2e8f0;
-            color: #475569;
+            background: var(--tag-bg);
+            color: var(--tag-text);
             padding: 2px 6px;
             border-radius: 4px;
             margin-right: 6px;
@@ -218,6 +266,7 @@
 
         mark {
             background-color: var(--search-mark);
+            color: var(--search-mark-text);
             padding: 1px 3px;
             border-radius: 2px;
             font-weight: 600;
@@ -228,14 +277,15 @@
             bottom: 0;
             left: 0;
             right: 0;
-            background: #1e293b;
-            color: white;
+            background: #18181b;
+            color: #ffffff;
+            border-top: 1px solid #27272a;
             padding: 12px 24px;
             display: none;
             justify-content: space-between;
             align-items: center;
             z-index: 100;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.3);
         }
 
         .action-bar.visible {
@@ -248,13 +298,13 @@
         }
 
         .action-bar button {
-            background: #334155;
-            color: white;
-            border: none;
+            background: #27272a;
+            color: #ffffff;
+            border: 1px solid #3f3f46;
         }
 
         .action-bar button:hover {
-            background: #475569;
+            background: #3f3f46;
         }
     </style>
 </head>
@@ -273,6 +323,8 @@
         </div>
 
         <div class="header-right">
+            <!-- 테마 전환 버튼 -->
+            <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">🌓 다크모드</button>
             <button id="pwaInstallBtn" class="btn-primary" style="display: none; background: #059669;">📱 앱 설치</button>
             <input type="file" id="fileInput" accept=".txt,.lfa" style="display: none;">
             <button onclick="document.getElementById('fileInput').click()">+ 파일 추가</button>
@@ -301,7 +353,31 @@
     </div>
 
     <script>
-        // 설치 버튼 클릭 처리
+        // --- 테마(다크/데이 모드) 관리 ---
+        function initTheme() {
+            const savedTheme = localStorage.getItem('ybible_theme') || 'light';
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark-mode');
+                document.getElementById('themeToggleBtn').textContent = '☀️ 데이모드';
+            } else {
+                document.body.classList.remove('dark-mode');
+                document.getElementById('themeToggleBtn').textContent = '🌓 다크모드';
+            }
+        }
+
+        function toggleTheme() {
+            const isDark = document.body.classList.toggle('dark-mode');
+            const btn = document.getElementById('themeToggleBtn');
+            if (isDark) {
+                localStorage.setItem('ybible_theme', 'dark');
+                btn.textContent = '☀️ 데이모드';
+            } else {
+                localStorage.setItem('ybible_theme', 'light');
+                btn.textContent = '🌓 다크모드';
+            }
+        }
+
+        // PWA 설치 버튼 클릭 처리
         const installBtn = document.getElementById('pwaInstallBtn');
         installBtn.addEventListener('click', async () => {
             if (deferredPrompt) {
@@ -316,7 +392,7 @@
             }
         });
 
-        // 성경 기본 목록
+        // 성경 기본 데이터
         const BIBLE_BOOKS = [
             "창세기", "출애굽기", "레위기", "민수기", "신명기", "여호수아", "사사기", "룻기", "사무엘상", "사무엘하",
             "열왕기상", "열왕기하", "역대상", "역대하", "에스라", "느헤미야", "에스더", "욥기", "시편", "잠언",
@@ -482,7 +558,7 @@
             container.innerHTML = "";
 
             if (activeTranslations.length === 0) {
-                container.innerHTML = "<p style='text-align:center; color:gray; margin-top:30px;'>상단에서 최소 하나의 역본을 선택해주세요.</p>";
+                container.innerHTML = "<p style='text-align:center; color:var(--text-muted); margin-top:30px;'>상단에서 최소 하나의 역본을 선택해주세요.</p>";
                 return;
             }
 
@@ -512,7 +588,7 @@
             const sortedVerseNums = Array.from(versesMap.keys()).sort((a, b) => a - b);
 
             if (sortedVerseNums.length === 0) {
-                container.innerHTML = "<p style='text-align:center; color:gray; margin-top:30px;'>해당 장의 구절 데이터가 없습니다. 상단에서 파일을 추가해주세요.</p>";
+                container.innerHTML = "<p style='text-align:center; color:var(--text-muted); margin-top:30px;'>해당 장의 구절 데이터가 없습니다. 상단에서 파일을 추가해주세요.</p>";
                 return;
             }
 
@@ -563,7 +639,7 @@
             document.getElementById("clearSearchBtn").style.display = "inline-block";
 
             const container = document.getElementById("verseContainer");
-            container.innerHTML = "<p style='text-align:center; color:gray; margin-top:30px;'>검색 중입니다...</p>";
+            container.innerHTML = "<p style='text-align:center; color:var(--text-muted); margin-top:30px;'>검색 중입니다...</p>";
 
             const resultsMap = new Map();
             const tx = db.transaction("verses", "readonly");
@@ -622,7 +698,7 @@
             container.innerHTML = "";
 
             if (sortedResults.length === 0) {
-                container.innerHTML = `<p style='text-align:center; color:gray; margin-top:30px;'>'${query}'에 대한 검색 결과가 없습니다.</p>`;
+                container.innerHTML = `<p style='text-align:center; color:var(--text-muted); margin-top:30px;'>'${query}'에 대한 검색 결과가 없습니다.</p>`;
                 return;
             }
 
@@ -806,6 +882,7 @@
         }
 
         window.addEventListener("DOMContentLoaded", async () => {
+            initTheme();
             await initDB();
             await insertSampleDataIfEmpty();
             populateSelectors();
