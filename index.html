@@ -194,7 +194,6 @@
             padding: 0 16px;
         }
 
-        /* 사진과 일치시킨 성경 본문 뷰 스타일 */
         .verse-item {
             padding: 10px 12px;
             border-radius: 8px;
@@ -626,7 +625,7 @@
             return text.replace(regex, '<mark>$1</mark>');
         }
 
-        // --- 사진 형식 렌더링 ---
+        // --- 사진 형식 렌더링 (출처 완전 제거 & 절 번호 매칭) ---
         async function renderVerses() {
             clearSelection();
             const container = document.getElementById("verseContainer");
@@ -679,11 +678,9 @@
                 let contentHtml = "";
 
                 if (!isMultiTrans) {
-                    // 단일 역본일 때 (사진 양식: 번호 + 텍스트만 깔끔하게 노출)
                     const text = vData[activeTranslations[0]] || "(해당 구절 없음)";
                     contentHtml = `<div class="verse-line">${text}</div>`;
                 } else {
-                    // 다중 역본 대조일 때만 태그 표시
                     activeTranslations.forEach((tId, idx) => {
                         const text = vData[tId] || "(해당 구절 없음)";
                         const displayName = translationNameMap[tId] || tId;
@@ -911,7 +908,7 @@
             const modal = document.getElementById("loadingModal");
             const statusText = document.getElementById("loadingStatus");
             modal.style.display = "flex";
-            statusText.textContent = "66권 전체 LFA/ZIP 아카이브 구조 분석 중...";
+            statusText.textContent = "66권 전체 성경 아카이브를 분석하는 중...";
 
             try {
                 let defaultName = file.name.replace(/\.[^/.]+$/, "");
@@ -926,8 +923,8 @@
 
                 try {
                     const zip = await JSZip.loadAsync(arrayBuffer);
-                    statusText.textContent = "66권 1,189개 장 바이너리 정밀 복원 중...";
-                    verses = await parseZipAll66Books(zip, transId);
+                    statusText.textContent = "66권 1,189개 장 전체 복원 중 (31,102구절)...";
+                    verses = await parseZipAll66Books(zip, transId, statusText);
                 } catch(zipErr) {
                     console.log("ZIP parse fallback:", zipErr);
                 }
@@ -961,19 +958,20 @@
             }
         });
 
-        // 66권 전체 1,189개 파일 파싱 함수
-        async function parseZipAll66Books(zip, transId) {
+        // 66권 전체 1,189개 파일 전수 순회 파싱
+        async function parseZipAll66Books(zip, transId, statusText) {
             const verses = [];
             const filenames = Object.keys(zip.files).filter(name => !zip.files[name].dir);
 
-            // 66권 및 장 번호 추출 정규식 (예: kornkrv01_1.lfb, 02_10.lfb 등)
+            // 파일명에서 책번호와 장번호를 추출하는 강력한 유연 정규식 (예: kornkrv01_1.lfb, 03_2.lfb 등)
             const regexLFB = /(\d{1,2})_(\d{1,3})\.lfb$/i;
 
+            let fileCount = 0;
             for (const filename of filenames) {
                 const match = filename.match(regexLFB);
                 if (!match) continue;
 
-                const bIdx = parseInt(match[1], 10) - 1; // 0 ~ 65 (창세기=0, 계시록=65)
+                const bIdx = parseInt(match[1], 10) - 1; // 0 (창세기) ~ 65 (요한계시록)
                 const ch = parseInt(match[2], 10);      // 장 번호
 
                 if (bIdx >= 0 && bIdx < 66) {
@@ -990,11 +988,16 @@
                             text: verseList[v]
                         });
                     }
+                    fileCount++;
+                    if (fileCount % 100 === 0 && statusText) {
+                        statusText.textContent = `66권 복원 진행 중... (${fileCount}/1,189장 완료)`;
+                    }
                 }
             }
             return verses;
         }
 
+        // 출처('출 1:1', '창 1:1') 완전 제거 및 순수 본문 복원기
         function decodeLFBPure(uint8) {
             const decEUCKR = new TextDecoder("euc-kr", { fatal: false });
             const decUTF8 = new TextDecoder("utf-8", { fatal: false });
@@ -1029,10 +1032,14 @@
                 let bestScore = Math.max(scoreEUC, scoreUTF);
 
                 if (bestScore >= 2) {
-                    let clean = bestStr.replace(/^[\s\d:_\.\-\/\x00-\x1F\x7F\uFFFD\u25C6\u25A0]+/, '').trim();
+                    // 1) 앞부분의 '출 1:1', '창1:1', '출애굽기 1:1', 'GEN 1:1' 패턴 및 숫자 완전 제거
+                    let clean = bestStr.replace(/^[가-힣a-zA-Z0-9\s]{1,10}\s*\d+[:\.\s_]\d+\s*/, '').trim();
+                    // 2) 앞머리에 남은 번호/기호 제거
+                    clean = clean.replace(/^[\s\d:_\.\-\/\x00-\x1F\x7F\uFFFD\u25C6\u25A0]+/, '').trim();
+                    // 3) 제어 문자 정제
                     clean = clean.replace(/[\x00-\x1F\x7F\uFFFD]/g, '').trim();
 
-                    if (clean.length > 0) {
+                    if (clean.length > 0 && /[가-힣]/.test(clean)) {
                         verses.push(clean);
                     }
                 }
