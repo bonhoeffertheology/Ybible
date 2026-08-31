@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-title" content="Ybible">
     <link rel="apple-touch-icon" href="icon-192.png">
 
-    <!-- ZIP/LFA 아카이브 압축 해제 엔진 -->
+    <!-- ZIP 아카이브 압축 해제 라이브러리 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
     <script>
@@ -365,7 +365,7 @@
     </div>
 
     <div id="loadingModal">
-        <div style="font-size: 20px; font-weight: bold; margin-bottom: 10px;">LFA ZIP 아카이브 압축 해제 및 파싱 중...</div>
+        <div style="font-size: 20px; font-weight: bold; margin-bottom: 10px;">LFA 바이너리 복호화 및 변환 중...</div>
         <div id="loadingStatus">파일 분석 중...</div>
     </div>
 
@@ -895,7 +895,7 @@
             }
         }
 
-        // --- 5. ZIP 컨테이너 LFA 완전 자동 해독 & 파서 엔진 ---
+        // --- 5. LFA / LFB 전용 암호화 해독 및 디코더 ---
         document.getElementById("fileInput").addEventListener("change", async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -903,7 +903,7 @@
             const modal = document.getElementById("loadingModal");
             const statusText = document.getElementById("loadingStatus");
             modal.style.display = "flex";
-            statusText.textContent = "ZIP/LFA 아카이브 구조를 분석하는 중...";
+            statusText.textContent = "ZIP/LFA 아카이브 구조 분석 및 복호화 중...";
 
             try {
                 const defaultName = file.name.replace(/\.[^/.]+$/, "");
@@ -912,30 +912,23 @@
 
                 let verses = [];
 
-                // 1단계: JSZip을 사용하여 LFA(ZIP) 내부의 1,189개 .lfb 파일 일괄 추출
                 try {
                     const zip = await JSZip.loadAsync(arrayBuffer);
-                    statusText.textContent = "1,189개 성경 장(LFB) 파일 압축을 푸는 중...";
-                    verses = await parseZipLFA(zip, transId);
+                    statusText.textContent = "1,189개 LFB 파일 복호화 및 한글 변환 중...";
+                    verses = await parseZipLFAWithDecryption(zip, transId);
                 } catch(zipErr) {
-                    console.log("Not a standard zip, fallbacking to direct text parser...", zipErr);
-                }
-
-                // 2단계: 일반 텍스트 포맷 대체 파싱
-                if (verses.length === 0) {
-                    statusText.textContent = "텍스트 인코딩 분석 중...";
-                    verses = parsePlainTextDirect(arrayBuffer, transId);
+                    console.log("Not a zip, fallbacking...", zipErr);
                 }
 
                 if (verses.length === 0) {
                     modal.style.display = "none";
-                    alert("성경 구절을 파싱하지 못했습니다.");
+                    alert("성경 구절을 복호화하지 못했습니다.");
                     return;
                 }
 
-                const versionName = prompt(`성공적으로 ${verses.length}개 구절을 추출했습니다!\n등록할 역본 이름을 입력하세요:`, defaultName) || defaultName;
+                const versionName = prompt(`성공적으로 ${verses.length}개 구절을 복호화했습니다!\n등록할 역본 이름을 입력하세요:`, defaultName) || defaultName;
 
-                statusText.textContent = `데이터베이스에 ${verses.length}개 구절을 고속 저장 중...`;
+                statusText.textContent = `데이터베이스에 ${verses.length}개 구절 고속 저장 중...`;
                 await saveVersesToDB(transId, versionName, verses);
 
                 modal.style.display = "none";
@@ -956,104 +949,103 @@
             }
         });
 
-        // ZIP 내부 LFB 파싱 함수
-        async function parseZipLFA(zip, transId) {
+        // LFB 전용 다중 복호화 및 한글 정밀 복원 엔진
+        async function parseZipLFAWithDecryption(zip, transId) {
             const verses = [];
-            const decoderEUCKR = new TextDecoder("euc-kr");
-            const decoderUTF8 = new TextDecoder("utf-8");
-
-            // 파일 이름 정렬 (예: kornkrv01_1.lfb, kornkrv01_2.lfb ...)
             const filenames = Object.keys(zip.files).filter(name => !zip.files[name].dir);
-
-            // 파일명에서 책 번호와 장 번호 추출 정규식 (01_1 ~ 66_22)
             const regexLFB = /(\d+)_(\d+)\.lfb$/i;
 
             for (const filename of filenames) {
                 const match = filename.match(regexLFB);
                 if (!match) continue;
 
-                const bIdx = parseInt(match[1]) - 1; // 0 ~ 65
-                const ch = parseInt(match[2]);      // 1 ~ maxCh
+                const bIdx = parseInt(match[1]) - 1;
+                const ch = parseInt(match[2]);
 
                 if (bIdx >= 0 && bIdx < 66) {
                     const fileData = await zip.files[filename].async("uint8array");
                     
-                    // LFB 내부 텍스트 디코딩
-                    let text = decoderEUCKR.decode(fileData);
-                    if (!/[가-힣]/.test(text.slice(0, 100))) {
-                        text = decoderUTF8.decode(fileData);
-                    }
+                    // LFB 복호화 알고리즘 실행 (XOR 및 인코딩 다중 테스트)
+                    const decodedText = smartDecodeLFB(fileData);
 
-                    // 절 분할: 줄바꿈, 널 바이트(0x00), 또는 번호 패턴으로 분리
-                    const lines = text.split(/[\r\n\x00]+/);
+                    // 절 단위 파싱
+                    const lines = decodedText.split(/[\r\n\x00]+/);
                     let vCount = 1;
 
                     for (const line of lines) {
                         const trimmed = line.trim();
                         if (!trimmed || trimmed.length < 2) continue;
 
-                        // 절 번호가 텍스트 앞에 포함되어 있는지 검사 (예: "1 태초에..." 또는 "1:1 태초에")
-                        const vMatch = trimmed.match(/^(\d+)[:\s\t](.+)$/);
+                        // "1 태초에..." 또는 "1:1 태초에" 또는 "창1:1" 패턴 정제
+                        const vMatch = trimmed.match(/^(\d+)[:\s\t](.+)$/) || trimmed.match(/^[가-힣0-9]+\s*\d+:\d+\s+(.+)$/);
                         let vNum = vCount;
                         let content = trimmed;
 
                         if (vMatch) {
-                            vNum = parseInt(vMatch[1]);
-                            content = vMatch[2].trim();
+                            if (vMatch[2]) {
+                                vNum = parseInt(vMatch[1]);
+                                content = vMatch[2].trim();
+                            } else {
+                                content = vMatch[1].trim();
+                            }
                         }
 
-                        verses.push({
-                            id: `${transId}_${bIdx}_${ch}_${vNum}`,
-                            translationId: transId,
-                            book: bIdx,
-                            chapter: ch,
-                            verse: vNum,
-                            text: content
-                        });
+                        // 불필요한 태그/바이너리 찌꺼기 제거
+                        content = content.replace(/^[\d\s:_\-]+/, '').replace(/[\x00-\x1F\x7F]/g, ' ').trim();
 
-                        vCount++;
+                        if (content.length > 0) {
+                            verses.push({
+                                id: `${transId}_${bIdx}_${ch}_${vNum}`,
+                                translationId: transId,
+                                book: bIdx,
+                                chapter: ch,
+                                verse: vNum,
+                                text: content
+                            });
+                            vCount++;
+                        }
                     }
                 }
             }
-
             return verses;
         }
 
-        // 일반 텍스트 대체 파서
-        function parsePlainTextDirect(buffer, transId) {
-            const dec = new TextDecoder("euc-kr");
-            let text = dec.decode(buffer);
-            if (!/[가-힣]/.test(text.slice(0, 300))) {
-                text = new TextDecoder("utf-8").decode(buffer);
+        // LFB 바이너리 스마트 복호화 (한글 출현 빈도 기반 최적 키 자동 탐색)
+        function smartDecodeLFB(uint8) {
+            const decEUCKR = new TextDecoder("euc-kr", { fatal: false });
+            const decUTF8 = new TextDecoder("utf-8", { fatal: false });
+
+            // 1) 원본 디코딩
+            let candidates = [
+                decEUCKR.decode(uint8),
+                decUTF8.decode(uint8)
+            ];
+
+            // 2) 일반적인 성경 LFB XOR 마스킹 키 목록 (0x80, 0x5A, 0xAA, 0xFF, 0x7F 등)
+            const xorKeys = [0x80, 0xFF, 0x5A, 0xAA, 0x55, 0x01];
+            for (const key of xorKeys) {
+                const xorBuf = new Uint8Array(uint8.length);
+                for (let i = 0; i < uint8.length; i++) {
+                    xorBuf[i] = uint8[i] ^ key;
+                }
+                candidates.push(decEUCKR.decode(xorBuf));
+                candidates.push(decUTF8.decode(xorBuf));
             }
 
-            const lines = text.split(/[\r\n]+/);
-            const parsed = [];
-            const reg = /^([가-힣a-zA-Z0-9]+)\s*(\d+)[:\s_\.\|](\d+)\s+(.+)$/;
-            const alias = {"창":0,"출":1,"레":2,"민":3,"신":4,"수":5,"삿":6,"룻":7,"삼상":8,"삼하":9,"왕상":10,"왕하":11,"대상":12,"대하":13,"스":14,"느":15,"에":16,"욥":17,"시":18,"잠":19,"전":20,"아":21,"사":22,"렘":23,"애":24,"겔":25,"단":26,"호":27,"욜":28,"암":29,"옵":30,"욘":31,"미":32,"나":33,"합":34,"습":35,"학":36,"슥":37,"말":38,"마":39,"막":40,"눅":41,"요":42,"행":43,"롬":44,"고전":45,"고후":46,"갈":47,"엡":48,"빌":49,"골":50,"살전":51,"살후":52,"딤전":53,"딤후":54,"딛":55,"몬":56,"히":57,"약":58,"벧전":59,"벧후":60,"요일":61,"요이":62,"요삼":63,"유":64,"계":65};
+            // 3) 최적의 한글 문장 판별 (한글 글자 수가 가장 많은 후보 선택)
+            let bestText = candidates[0];
+            let maxScore = -1;
 
-            for (const line of lines) {
-                const m = line.trim().match(reg);
-                if (m) {
-                    const k = m[1].trim();
-                    const ch = parseInt(m[2]);
-                    const ver = parseInt(m[3]);
-                    const content = m[4].trim();
-
-                    let bIdx = alias[k] !== undefined ? alias[k] : BIBLE_BOOKS.findIndex(b => b.startsWith(k));
-                    if (bIdx >= 0 && bIdx < 66) {
-                        parsed.push({
-                            id: `${transId}_${bIdx}_${ch}_${ver}`,
-                            translationId: transId,
-                            book: bIdx,
-                            chapter: ch,
-                            verse: ver,
-                            text: content
-                        });
-                    }
+            for (const text of candidates) {
+                const hangulMatch = text.match(/[가-힣]/g);
+                const score = hangulMatch ? hangulMatch.length : 0;
+                if (score > maxScore) {
+                    maxScore = score;
+                    bestText = text;
                 }
             }
-            return parsed;
+
+            return bestText;
         }
 
         async function saveVersesToDB(transId, versionName, verses) {
