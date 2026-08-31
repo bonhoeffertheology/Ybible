@@ -194,7 +194,6 @@
             padding: 0 16px;
         }
 
-        /* 사진 형태 성경 본문 뷰 */
         .verse-item {
             padding: 10px 12px;
             border-radius: 8px;
@@ -317,7 +316,6 @@
         <div class="header-left">
             <select id="bookSelect"></select>
             <select id="chapterSelect"></select>
-            <!-- 맨 윗줄 절수 선택 추가 -->
             <select id="verseSelect"></select>
         </div>
 
@@ -336,7 +334,8 @@
     </header>
 
     <div class="controls">
-        <span style="font-weight: bold; color: var(--text-muted);">역본 선택:</span>
+        <!-- '역본선택'에서 '역본'으로 수정 -->
+        <span style="font-weight: bold; color: var(--text-muted);">역본:</span>
         <div class="version-checkboxes" id="versionSelector"></div>
     </div>
 
@@ -357,7 +356,7 @@
     </div>
 
     <div id="loadingModal">
-        <div style="font-size: 20px; font-weight: bold; margin-bottom: 10px;">66권 성경 전체 데이터 저장 중...</div>
+        <div style="font-size: 20px; font-weight: bold; margin-bottom: 10px;">성경 데이터 고속 저장 중...</div>
         <div id="loadingStatus">잠시만 기다려주세요.</div>
     </div>
 
@@ -397,7 +396,6 @@
             }
         });
 
-        // 66권 전체 목록
         const BIBLE_BOOKS = [
             "창세기", "출애굽기", "레위기", "민수기", "신명기", "여호수아", "사사기", "룻기", "사무엘상", "사무엘하",
             "열왕기상", "열왕기하", "역대상", "역대하", "에스라", "느헤미야", "에스더", "욥기", "시편", "잠언",
@@ -408,7 +406,6 @@
             "야고보서", "베드로전서", "베드로후서", "요한일서", "요한이서", "요한삼서", "유다서", "요한계시록"
         ];
 
-        // 66권 각 장별 절 수 구조
         const BIBLE_STRUCTURE = [
             [31,25,24,26,32,22,24,22,29,32,32,20,18,24,21,16,27,33,38,18,34,24,20,67,34,35,46,22,35,43,55,32,20,31,29,43,36,30,23,23,57,38,34,34,28,34,31,22,33,26],
             [22,25,22,31,23,30,25,32,35,29,10,51,22,31,27,36,16,27,25,26,36,31,33,18,40,37,21,43,46,38,18,35,23,35,35,38,29,31,43,38],
@@ -559,7 +556,6 @@
                 renderVerses();
             });
 
-            // 절 선택 시 해당 구절로 부드럽게 스크롤
             document.getElementById("verseSelect").addEventListener("change", (e) => {
                 const v = parseInt(e.target.value);
                 if (v > 0) {
@@ -601,6 +597,7 @@
             }
         }
 
+        // --- 개역개정을 맨 앞에 우선 배치하여 정렬 ---
         async function updateTranslationCheckboxes() {
             const container = document.getElementById("versionSelector");
             container.innerHTML = "";
@@ -614,6 +611,18 @@
                 const list = req.result;
                 list.forEach(item => {
                     translationNameMap[item.id] = item.name;
+                });
+
+                // 개역개정을 맨 앞에 오도록 정렬 순서 정의
+                list.sort((a, b) => {
+                    const getRank = (name) => {
+                        if (name.includes("개역개정")) return 1;
+                        if (name.includes("개역한글")) return 2;
+                        if (name.toUpperCase().includes("TNIV")) return 3;
+                        if (name.toUpperCase().includes("NIV")) return 4;
+                        return 5;
+                    };
+                    return getRank(a.name) - getRank(b.name);
                 });
 
                 if (list.length > 0 && activeTranslations.length === 0) {
@@ -933,7 +942,7 @@
             }
         }
 
-        // --- 66권 전체 1,189개 파일 완전 파싱 엔진 ---
+        // --- TNIV / 개역개정 등 모든 다국어 LFA 완전 자동 고속 파서 ---
         document.getElementById("fileInput").addEventListener("change", async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -941,12 +950,18 @@
             const modal = document.getElementById("loadingModal");
             const statusText = document.getElementById("loadingStatus");
             modal.style.display = "flex";
-            statusText.textContent = "66권 전체 LFA/ZIP 아카이브 구조 분석 중...";
+            statusText.textContent = "성경 아카이브 파일 분석 중...";
 
             try {
                 let defaultName = file.name.replace(/\.[^/.]+$/, "");
-                if (defaultName.toLowerCase().includes("kornkrv") || defaultName.toLowerCase().includes("개역개정")) {
+                const lowerName = defaultName.toLowerCase();
+                
+                if (lowerName.includes("tniv")) {
+                    defaultName = "TNIV";
+                } else if (lowerName.includes("kornkrv") || lowerName.includes("개역개정")) {
                     defaultName = "개역개정";
+                } else if (lowerName.includes("niv")) {
+                    defaultName = "NIV";
                 }
 
                 const arrayBuffer = await file.arrayBuffer();
@@ -971,8 +986,6 @@
                 const versionName = prompt(`성공적으로 66권 전체(${verses.length}개 구절)를 추출했습니다!\n등록할 역본 이름을 입력하세요:`, defaultName) || defaultName;
 
                 statusText.textContent = `데이터베이스에 66권 전체(${verses.length}개 구절) 고속 저장 중...`;
-                
-                // 단일 연속 트랜잭션으로 31,102개 전체 완벽 저장
                 await saveVersesToDB(transId, versionName, verses);
 
                 modal.style.display = "none";
@@ -993,12 +1006,12 @@
             }
         });
 
-        // 66권 전체 1,189개 파일 전수 순회 파싱
+        // 66권 전체 1,189개 파일 순회 파싱 (한글/영문 모두 지원)
         async function parseZipAll66Books(zip, transId, statusText) {
             const verses = [];
             const filenames = Object.keys(zip.files).filter(name => !zip.files[name].dir);
 
-            // 파일명에서 책번호와 장번호를 추출하는 정규식
+            // 파일명에서 책번호와 장번호를 추출하는 정규식 (engtniv01_1.lfb, kornkrv01_1.lfb 등 대응)
             const regexLFB = /(\d{1,2})_(\d{1,3})\.lfb$/i;
 
             let fileCount = 0;
@@ -1011,7 +1024,7 @@
 
                 if (bIdx >= 0 && bIdx < 66) {
                     const uint8 = await zip.files[filename].async("uint8array");
-                    const verseList = decodeLFBPure(uint8);
+                    const verseList = decodeLFBPureUniversal(uint8);
 
                     for (let v = 0; v < verseList.length; v++) {
                         verses.push({
@@ -1032,8 +1045,8 @@
             return verses;
         }
 
-        // 출처('출 1:1', '창 1:1') 완전 제거 및 순수 본문 복원기
-        function decodeLFBPure(uint8) {
+        // 영문 및 한글 범용 LFB 바이트 복원 엔진
+        function decodeLFBPureUniversal(uint8) {
             const decEUCKR = new TextDecoder("euc-kr", { fatal: false });
             const decUTF8 = new TextDecoder("utf-8", { fatal: false });
 
@@ -1060,21 +1073,19 @@
                 let strEUC = decEUCKR.decode(block);
                 let strUTF = decUTF8.decode(block);
 
-                let scoreEUC = (strEUC.match(/[가-힣]/g) || []).length;
-                let scoreUTF = (strUTF.match(/[가-힣]/g) || []).length;
+                let scoreEUC = (strEUC.match(/[가-힣a-zA-Z]/g) || []).length;
+                let scoreUTF = (strUTF.match(/[가-힣a-zA-Z]/g) || []).length;
 
-                let bestStr = scoreUTF > scoreEUC ? strUTF : strEUC;
+                let bestStr = scoreUTF >= scoreEUC ? strUTF : strEUC;
                 let bestScore = Math.max(scoreEUC, scoreUTF);
 
                 if (bestScore >= 2) {
-                    // 1) 앞부분의 '출 1:1', '창1:1', '출애굽기 1:1', 'GEN 1:1' 패턴 및 숫자 완전 제거
-                    let clean = bestStr.replace(/^[가-힣a-zA-Z0-9\s]{1,10}\s*\d+[:\.\s_]\d+[\s\t]*/, '').trim();
-                    // 2) 앞머리에 남은 번호/기호 제거
+                    // 앞부분의 출처 접두어 제거 (예: '출 1:1 ', 'Gen 1:1 ', '1:1 ' 등)
+                    let clean = bestStr.replace(/^[가-힣a-zA-Z0-9\s]{1,15}\s*\d+[:\.\s_]\d+[\s\t]*/, '').trim();
                     clean = clean.replace(/^[\s\d:_\.\-\/\x00-\x1F\x7F\uFFFD\u25C6\u25A0]+/, '').trim();
-                    // 3) 제어 문자 정제
                     clean = clean.replace(/[\x00-\x1F\x7F\uFFFD]/g, '').trim();
 
-                    if (clean.length > 0 && /[가-힣]/.test(clean)) {
+                    if (clean.length > 0 && /[가-힣a-zA-Z]/.test(clean)) {
                         verses.push(clean);
                     }
                 }
@@ -1083,7 +1094,7 @@
             return verses;
         }
 
-        // 전체 31,102구절 단일 고속 트랜잭션 저장 (중단 버그 해결)
+        // 전체 31,102구절 단일 고속 트랜잭션 저장
         async function saveVersesToDB(transId, versionName, verses) {
             return new Promise((resolve, reject) => {
                 const tx = db.transaction(["translations", "verses"], "readwrite");
