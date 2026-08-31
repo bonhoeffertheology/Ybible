@@ -53,7 +53,7 @@
             --banner-text: #0369a1;
             --btn-sub-bg: #f8fafc;
             --btn-sub-hover: #e2e8f0;
-            --bible-font-size: 16.5px; /* 실시간 조절되는 기본 글꼴 크기 */
+            --bible-font-size: 16.5px;
         }
 
         body.dark-mode {
@@ -89,7 +89,7 @@
             background-color: var(--bg);
             color: var(--text-main);
             padding-bottom: 90px;
-            touch-action: pan-x pan-y; /* 모바일 브라우저 자체 확대 대신 커스텀 핀치 줌을 허용 */
+            touch-action: pan-x pan-y;
         }
 
         header {
@@ -99,27 +99,29 @@
             border-bottom: 1px solid var(--border);
             padding: 10px 14px;
             display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            justify-content: space-between;
+            flex-direction: column;
             gap: 8px;
             z-index: 50;
             box-shadow: 0 1px 3px rgba(0,0,0,0.03);
         }
 
-        .header-left, .header-center, .header-right {
+        .header-top {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 6px;
+            width: 100%;
+        }
+
+        .header-bottom {
             display: flex;
             align-items: center;
             gap: 6px;
-        }
-
-        .header-center {
-            flex-grow: 1;
-            max-width: 320px;
-        }
-
-        input[type="text"] {
             width: 100%;
+        }
+
+        .header-bottom input[type="text"] {
+            flex: 1;
             padding: 7px 10px;
             border: 1px solid var(--border);
             border-radius: 6px;
@@ -129,7 +131,7 @@
             color: var(--text-main);
         }
 
-        input[type="text"]:focus {
+        .header-bottom input[type="text"]:focus {
             border-color: var(--primary);
         }
 
@@ -144,6 +146,29 @@
             white-space: nowrap;
         }
 
+        /* 성경/장/절 바로 옆에 위치하는 컴팩트 아이콘 버튼 */
+        .icon-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            padding: 0;
+            font-size: 16px;
+            font-weight: 700;
+            border-radius: 6px;
+            cursor: pointer;
+            background: var(--btn-sub-bg);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            user-select: none;
+            flex-shrink: 0;
+        }
+
+        .icon-btn:hover {
+            background: var(--btn-sub-hover);
+        }
+
         button.btn-primary {
             background: var(--primary);
             color: #ffffff;
@@ -153,13 +178,6 @@
 
         button.btn-primary:hover {
             background: var(--primary-hover);
-        }
-
-        .theme-toggle-btn {
-            background: var(--btn-sub-bg);
-            border: 1px solid var(--border);
-            color: var(--text-main);
-            font-weight: 500;
         }
 
         .controls {
@@ -231,7 +249,6 @@
             gap: 6px;
         }
 
-        /* 1, 2번째 역본 모두 완벽하게 동일한 폰트 크기 및 높이 설정 */
         .verse-line {
             font-size: var(--bible-font-size) !important;
             line-height: 1.75 !important;
@@ -241,13 +258,11 @@
             padding: 0;
         }
 
-        /* 한글: 글자 단위 줄바꿈 */
         .lang-ko {
             word-break: break-all !important;
             word-wrap: break-word !important;
         }
 
-        /* 영어: 단어 단위 줄바꿈 */
         .lang-en {
             word-break: keep-all !important;
             overflow-wrap: break-word !important;
@@ -309,7 +324,6 @@
             background: #334155;
         }
 
-        /* 핀치 줌 글자 크기 알림 토스트 */
         #fontSizeToast {
             position: fixed;
             top: 50%;
@@ -347,23 +361,22 @@
 <body>
 
     <header>
-        <div class="header-left">
+        <!-- 1행: 성경, 장, 절 바로 옆에 다크모드/데이모드 토글과 + 버튼 배치 -->
+        <div class="header-top">
             <select id="bookSelect"></select>
             <select id="chapterSelect"></select>
             <select id="verseSelect"></select>
+            <button id="themeToggleBtn" class="icon-btn" onclick="toggleTheme()" title="다크/데이모드 전환">🌓</button>
+            <input type="file" id="fileInput" accept="*/*" style="display: none;">
+            <button onclick="document.getElementById('fileInput').click()" class="icon-btn" title="성경 파일 추가">+</button>
+            <button id="pwaInstallBtn" class="btn-primary" style="display: none; background: #059669; padding: 7px 10px; margin-left: auto;">📱 앱 설치</button>
         </div>
 
-        <div class="header-center">
+        <!-- 2행: 검색 바 -->
+        <div class="header-bottom">
             <input type="text" id="searchInput" placeholder="성경문구 검색">
             <button class="btn-primary" onclick="handleSearch()">검색</button>
             <button onclick="clearSearch()" id="clearSearchBtn" style="display: none;">초기화</button>
-        </div>
-
-        <div class="header-right">
-            <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">🌓 다크모드</button>
-            <button id="pwaInstallBtn" class="btn-primary" style="display: none; background: #059669;">📱 앱 설치</button>
-            <input type="file" id="fileInput" accept="*/*" style="display: none;">
-            <button onclick="document.getElementById('fileInput').click()" class="btn-primary">+ 성경 파일 추가</button>
         </div>
     </header>
 
@@ -396,14 +409,13 @@
     </div>
 
     <script>
-        // --- 1. 모바일 핀치 줌(두 손가락 벌림/오므림) 글자 크기 엔진 ---
         let currentFontSize = parseFloat(localStorage.getItem('ybible_font_size')) || 16.5;
         let initialDistance = 0;
         let startFontSize = currentFontSize;
         let toastTimer = null;
 
         function applyFontSize(size, showToast = false) {
-            currentFontSize = Math.min(Math.max(size, 12), 34); // 12px ~ 34px
+            currentFontSize = Math.min(Math.max(size, 12), 34);
             document.documentElement.style.setProperty('--bible-font-size', currentFontSize.toFixed(1) + 'px');
             localStorage.setItem('ybible_font_size', currentFontSize.toFixed(1));
 
@@ -424,7 +436,6 @@
             return Math.sqrt(dx * dx + dy * dy);
         }
 
-        // 핀치 줌 이벤트 리스너
         window.addEventListener('touchstart', (e) => {
             if (e.touches.length === 2) {
                 initialDistance = getDistance(e.touches);
@@ -447,15 +458,15 @@
             }
         }, { passive: true });
 
-        // --- 2. 테마 & PWA 설정 ---
         function initTheme() {
             const savedTheme = localStorage.getItem('ybible_theme') || 'light';
+            const btn = document.getElementById('themeToggleBtn');
             if (savedTheme === 'dark') {
                 document.body.classList.add('dark-mode');
-                document.getElementById('themeToggleBtn').textContent = '☀️ 데이모드';
+                if (btn) btn.textContent = '☀️';
             } else {
                 document.body.classList.remove('dark-mode');
-                document.getElementById('themeToggleBtn').textContent = '🌓 다크모드';
+                if (btn) btn.textContent = '🌓';
             }
             applyFontSize(currentFontSize, false);
         }
@@ -465,10 +476,10 @@
             const btn = document.getElementById('themeToggleBtn');
             if (isDark) {
                 localStorage.setItem('ybible_theme', 'dark');
-                btn.textContent = '☀️ 데이모드';
+                if (btn) btn.textContent = '☀️';
             } else {
                 localStorage.setItem('ybible_theme', 'light');
-                btn.textContent = '🌓 다크모드';
+                if (btn) btn.textContent = '🌓';
             }
         }
 
@@ -756,7 +767,6 @@
             return /[가-힣]/.test(text) ? "lang-ko" : "lang-en";
         }
 
-        // --- 모든 역본의 글자 크기와 정렬을 완전히 일치시킨 렌더링 ---
         async function renderVerses() {
             clearSelection();
             const container = document.getElementById("verseContainer");
@@ -793,7 +803,7 @@
             const sortedVerseNums = Array.from(versesMap.keys()).sort((a, b) => a - b);
 
             if (sortedVerseNums.length === 0) {
-                container.innerHTML = "<p style='text-align:center; color:var(--text-muted); margin-top:30px;'>해당 장의 구절 데이터가 없습니다. 상단 [+ 성경 파일 추가]를 눌러 역본을 추가해주세요.</p>";
+                container.innerHTML = "<p style='text-align:center; color:var(--text-muted); margin-top:30px;'>해당 장의 구절 데이터가 없습니다. 상단 [+] 버튼을 눌러 역본을 추가해주세요.</p>";
                 return;
             }
 
@@ -1031,7 +1041,6 @@
             }
         }
 
-        // --- 다국어/영문/한글 완전 범용 LFA 초고속 파서 ---
         document.getElementById("fileInput").addEventListener("change", async (e) => {
             const file = e.target.files[0];
             if (!file) return;
