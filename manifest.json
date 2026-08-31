@@ -1,26 +1,35 @@
 {
-  "id": "/Ybible/",
   "name": "Ybible 성경뷰어",
   "short_name": "Ybible",
-  "description": "다중 역본 대조 및 검색 지원 성경 뷰어",
-  "start_url": "./",
-  "scope": "./",
+  "start_url": "/Ybible/",
+  "scope": "/Ybible/",
   "display": "standalone",
-  "orientation": "any",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "/Ybible/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "icon-512.png",
+      "src": "/Ybible/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/Ybible/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/Ybible/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
