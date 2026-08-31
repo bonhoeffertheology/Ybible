@@ -507,23 +507,23 @@
             });
         }
 
-        async function insertSampleDataIfEmpty() {
-            const tx = db.transaction(["translations", "verses"], "readwrite");
-            const tStore = tx.objectStore("translations");
-            const countRequest = tStore.count();
+        // 기존 더미 샘플(개역한글 KRV, 더미 NIV)을 완전히 삭제하고 청소
+        async function purgeSampleData() {
+            return new Promise((resolve) => {
+                const tx = db.transaction(["translations", "verses"], "readwrite");
+                const tStore = tx.objectStore("translations");
+                tStore.delete("KRV");
+                tStore.delete("NIV");
 
-            countRequest.onsuccess = async () => {
-                if (countRequest.result === 0) {
-                    tStore.add({ id: "KRV", name: "개역한글" });
-                    tStore.add({ id: "NIV", name: "NIV" });
+                const vStore = tx.objectStore("verses");
+                vStore.delete("KRV_0_1_1");
+                vStore.delete("KRV_0_1_2");
+                vStore.delete("NIV_0_1_1");
+                vStore.delete("NIV_0_1_2");
 
-                    const vStore = tx.objectStore("verses");
-                    vStore.add({ id: "KRV_0_1_1", translationId: "KRV", book: 0, chapter: 1, verse: 1, text: "태초에 하나님이 천지를 창조하시니라" });
-                    vStore.add({ id: "KRV_0_1_2", translationId: "KRV", book: 0, chapter: 1, verse: 2, text: "땅이 혼돈하고 공허하며 흑암이 깊음 위에 있고 하나님의 영은 수면 위에 운행하시니라" });
-                    vStore.add({ id: "NIV_0_1_1", translationId: "NIV", book: 0, chapter: 1, verse: 1, text: "In the beginning God created the heavens and the earth." });
-                    vStore.add({ id: "NIV_0_1_2", translationId: "NIV", book: 0, chapter: 1, verse: 2, text: "Now the earth was formless and empty, darkness was over the surface of the deep, and the Spirit of God was hovering over the waters." });
-                }
-            };
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => resolve();
+            });
         }
 
         function populateSelectors() {
@@ -584,7 +584,6 @@
             }
         }
 
-        // '1절~'을 없애고 1절부터 바로 시작하도록 수정
         function updateVerseSelect() {
             const vSelect = document.getElementById("verseSelect");
             vSelect.innerHTML = '';
@@ -940,6 +939,7 @@
             }
         }
 
+        // --- 다국어/한글 LFA 파일 추가 및 고속 저장 ---
         document.getElementById("fileInput").addEventListener("change", async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -947,7 +947,7 @@
             const modal = document.getElementById("loadingModal");
             const statusText = document.getElementById("loadingStatus");
             modal.style.display = "flex";
-            statusText.textContent = "66권 전체 성경 아카이브를 분석하는 중...";
+            statusText.textContent = "성경 아카이브 파일 분석 중...";
 
             try {
                 let defaultName = file.name.replace(/\.[^/.]+$/, "");
@@ -968,7 +968,7 @@
 
                 try {
                     const zip = await JSZip.loadAsync(arrayBuffer);
-                    statusText.textContent = "66권 1,189개 장 전체 복원 중 (31,102구절)...";
+                    statusText.textContent = "66권 1,189개 장 바이너리 정밀 복원 중...";
                     verses = await parseZipAll66Books(zip, transId, statusText);
                 } catch(zipErr) {
                     console.log("ZIP parse fallback:", zipErr);
@@ -1069,7 +1069,7 @@
                 let scoreEUC = (strEUC.match(/[가-힣a-zA-Z]/g) || []).length;
                 let scoreUTF = (strUTF.match(/[가-힣a-zA-Z]/g) || []).length;
 
-                let bestStr = scoreUTF > scoreEUC ? strUTF : strEUC;
+                let bestStr = scoreUTF >= scoreEUC ? strUTF : strEUC;
                 let bestScore = Math.max(scoreEUC, scoreUTF);
 
                 if (bestScore >= 2) {
@@ -1104,7 +1104,7 @@
         window.addEventListener("DOMContentLoaded", async () => {
             initTheme();
             await initDB();
-            await insertSampleDataIfEmpty();
+            await purgeSampleData(); // 샘플 데이터 삭제
             populateSelectors();
             await updateTranslationCheckboxes();
             renderVerses();
