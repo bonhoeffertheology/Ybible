@@ -44,8 +44,8 @@
             --text-main: #0f172a;
             --text-muted: #64748b;
             --highlight: #f0f9ff;
-            --tag-bg: #f1f5f9;
-            --tag-text: #475569;
+            --tag-bg: #e2e8f0;
+            --tag-text: #334155;
             --search-mark: #fef08a;
             --search-mark-text: #0f172a;
             --banner-bg: #e0f2fe;
@@ -53,6 +53,7 @@
             --banner-text: #0369a1;
             --btn-sub-bg: #f8fafc;
             --btn-sub-hover: #e2e8f0;
+            --bible-font-size: 16.5px; /* 실시간 조절되는 기본 글꼴 크기 */
         }
 
         body.dark-mode {
@@ -88,6 +89,7 @@
             background-color: var(--bg);
             color: var(--text-main);
             padding-bottom: 90px;
+            touch-action: pan-x pan-y; /* 모바일 브라우저 자체 확대 대신 커스텀 핀치 줌을 허용 */
         }
 
         header {
@@ -199,9 +201,6 @@
             border-radius: 8px;
             margin-bottom: 6px;
             cursor: pointer;
-            line-height: 1.75;
-            font-size: 16.5px;
-            font-weight: 500;
             display: flex;
             align-items: flex-start;
             gap: 10px;
@@ -218,24 +217,44 @@
         .verse-num {
             color: var(--primary);
             font-weight: 700;
-            font-size: 15px;
+            font-size: calc(var(--bible-font-size) - 1.5px);
             min-width: 24px;
-            padding-top: 1px;
+            padding-top: 2px;
             text-align: right;
             user-select: none;
         }
 
         .verse-content-box {
             flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
         }
 
+        /* 1, 2번째 역본 모두 완벽하게 동일한 폰트 크기 및 높이 설정 */
         .verse-line {
-            color: var(--text-main);
-            word-break: keep-all;
+            font-size: var(--bible-font-size) !important;
+            line-height: 1.75 !important;
+            font-weight: 500;
+            color: var(--text-main) !important;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* 한글: 글자 단위 줄바꿈 */
+        .lang-ko {
+            word-break: break-all !important;
+            word-wrap: break-word !important;
+        }
+
+        /* 영어: 단어 단위 줄바꿈 */
+        .lang-en {
+            word-break: keep-all !important;
+            overflow-wrap: break-word !important;
         }
 
         .compare-trans-tag {
-            font-size: 11px;
+            font-size: calc(var(--bible-font-size) * 0.72);
             background: var(--tag-bg);
             color: var(--tag-text);
             padding: 2px 6px;
@@ -243,12 +262,8 @@
             margin-right: 6px;
             font-weight: 600;
             vertical-align: middle;
-        }
-
-        .compare-row {
-            margin-top: 4px;
-            font-size: 15px;
-            color: var(--text-muted);
+            display: inline-block;
+            line-height: 1.25;
         }
 
         mark {
@@ -292,6 +307,25 @@
 
         .action-bar button:hover {
             background: #334155;
+        }
+
+        /* 핀치 줌 글자 크기 알림 토스트 */
+        #fontSizeToast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(15, 23, 42, 0.88);
+            color: #ffffff;
+            padding: 10px 22px;
+            border-radius: 24px;
+            font-size: 15px;
+            font-weight: 600;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            z-index: 1000;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.25);
         }
 
         #loadingModal {
@@ -354,12 +388,66 @@
         </div>
     </div>
 
+    <div id="fontSizeToast">글자 크기: 16.5px</div>
+
     <div id="loadingModal">
         <div style="font-size: 20px; font-weight: bold; margin-bottom: 10px;">성경 데이터 고속 저장 중...</div>
         <div id="loadingStatus">잠시만 기다려주세요.</div>
     </div>
 
     <script>
+        // --- 1. 모바일 핀치 줌(두 손가락 벌림/오므림) 글자 크기 엔진 ---
+        let currentFontSize = parseFloat(localStorage.getItem('ybible_font_size')) || 16.5;
+        let initialDistance = 0;
+        let startFontSize = currentFontSize;
+        let toastTimer = null;
+
+        function applyFontSize(size, showToast = false) {
+            currentFontSize = Math.min(Math.max(size, 12), 34); // 12px ~ 34px
+            document.documentElement.style.setProperty('--bible-font-size', currentFontSize.toFixed(1) + 'px');
+            localStorage.setItem('ybible_font_size', currentFontSize.toFixed(1));
+
+            if (showToast) {
+                const toast = document.getElementById('fontSizeToast');
+                toast.textContent = `글자 크기: ${currentFontSize.toFixed(1)}px`;
+                toast.style.opacity = '1';
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(() => {
+                    toast.style.opacity = '0';
+                }, 800);
+            }
+        }
+
+        function getDistance(touches) {
+            const dx = touches[0].clientX - touches[1].clientX;
+            const dy = touches[0].clientY - touches[1].clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        // 핀치 줌 이벤트 리스너
+        window.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                initialDistance = getDistance(e.touches);
+                startFontSize = currentFontSize;
+            }
+        }, { passive: true });
+
+        window.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2 && initialDistance > 0) {
+                const currentDist = getDistance(e.touches);
+                const scale = currentDist / initialDistance;
+                const newSize = startFontSize * scale;
+                applyFontSize(newSize, true);
+            }
+        }, { passive: true });
+
+        window.addEventListener('touchend', (e) => {
+            if (e.touches.length < 2) {
+                initialDistance = 0;
+            }
+        }, { passive: true });
+
+        // --- 2. 테마 & PWA 설정 ---
         function initTheme() {
             const savedTheme = localStorage.getItem('ybible_theme') || 'light';
             if (savedTheme === 'dark') {
@@ -369,6 +457,7 @@
                 document.body.classList.remove('dark-mode');
                 document.getElementById('themeToggleBtn').textContent = '🌓 다크모드';
             }
+            applyFontSize(currentFontSize, false);
         }
 
         function toggleTheme() {
@@ -663,6 +752,11 @@
             return text.replace(regex, '<mark>$1</mark>');
         }
 
+        function getLangClass(text) {
+            return /[가-힣]/.test(text) ? "lang-ko" : "lang-en";
+        }
+
+        // --- 모든 역본의 글자 크기와 정렬을 완전히 일치시킨 렌더링 ---
         async function renderVerses() {
             clearSelection();
             const container = document.getElementById("verseContainer");
@@ -716,16 +810,14 @@
 
                 if (!isMultiTrans) {
                     const text = vData[activeTranslations[0]] || "(해당 구절 없음)";
-                    contentHtml = `<div class="verse-line">${text}</div>`;
+                    const langClass = getLangClass(text);
+                    contentHtml = `<div class="verse-line ${langClass}">${text}</div>`;
                 } else {
-                    activeTranslations.forEach((tId, idx) => {
+                    activeTranslations.forEach((tId) => {
                         const text = vData[tId] || "(해당 구절 없음)";
                         const displayName = translationNameMap[tId] || tId;
-                        if (idx === 0) {
-                            contentHtml += `<div class="verse-line"><span class="compare-trans-tag">${displayName}</span>${text}</div>`;
-                        } else {
-                            contentHtml += `<div class="compare-row"><span class="compare-trans-tag">${displayName}</span>${text}</div>`;
-                        }
+                        const langClass = getLangClass(text);
+                        contentHtml += `<div class="verse-line ${langClass}"><span class="compare-trans-tag">${displayName}</span>${text}</div>`;
                     });
                 }
 
@@ -841,8 +933,9 @@
                     const text = item.texts[tId] || "(구절 정보 없음)";
                     const highlighted = highlightText(text, query);
                     const displayName = translationNameMap[tId] || tId;
+                    const langClass = getLangClass(text);
                     innerHTML += `
-                        <div style="margin-top: 4px; line-height: 1.6;">
+                        <div class="verse-line ${langClass}" style="margin-top: 4px;">
                             <span class="compare-trans-tag">${displayName}</span>${highlighted}
                         </div>
                     `;
@@ -938,7 +1031,7 @@
             }
         }
 
-        // --- 오프셋 자동 보정 ZIP/LFA 파서 엔진 ---
+        // --- 다국어/영문/한글 완전 범용 LFA 초고속 파서 ---
         document.getElementById("fileInput").addEventListener("change", async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -946,7 +1039,7 @@
             const modal = document.getElementById("loadingModal");
             const statusText = document.getElementById("loadingStatus");
             modal.style.display = "flex";
-            statusText.textContent = "LFA 아카이브 구조 분석 중...";
+            statusText.textContent = "성경 아카이브 파일 분석 중...";
 
             try {
                 let defaultName = file.name.replace(/\.[^/.]+$/, "");
@@ -965,7 +1058,6 @@
 
                 let verses = [];
 
-                // 1) 널 바이트(0x00) 패딩을 건너뛰고 실제 ZIP 시작 지점 탐색
                 const cleanBuffer = findZipBuffer(arrayBuffer);
 
                 try {
@@ -1005,7 +1097,6 @@
             }
         });
 
-        // 파일 앞부분의 공백을 건너뛰고 'PK\x03\x04' 위치를 찾는 함수
         function findZipBuffer(buffer) {
             const uint8 = new Uint8Array(buffer);
             for (let i = 0; i < uint8.length - 4; i++) {
@@ -1124,4 +1215,4 @@
         });
     </script>
 </body>
-    </html>
+</html>
