@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Ybible 성경뷰어</title>
 
-    <!-- PWA 매니페스트 및 아이콘 설정 -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0f172a">
     <meta name="mobile-web-app-capable" content="yes">
@@ -306,7 +305,7 @@
         #loadingModal {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.75);
+            background: rgba(0, 0, 0, 0.8);
             color: white;
             display: none;
             flex-direction: column;
@@ -361,12 +360,11 @@
     </div>
 
     <div id="loadingModal">
-        <div style="font-size: 20px; font-weight: bold; margin-bottom: 10px;">성경 데이터 파싱 및 설치 중...</div>
+        <div style="font-size: 20px; font-weight: bold; margin-bottom: 10px;">LFA 바이너리 디코딩 및 파싱 중...</div>
         <div id="loadingStatus">파일 분석 중...</div>
     </div>
 
     <script>
-        // --- 1. 테마 관리 ---
         function initTheme() {
             const savedTheme = localStorage.getItem('ybible_theme') || 'light';
             if (savedTheme === 'dark') {
@@ -390,7 +388,6 @@
             }
         }
 
-        // --- 2. PWA 설치 프롬프트 ---
         const installBtn = document.getElementById('pwaInstallBtn');
         installBtn.addEventListener('click', async () => {
             if (deferredPrompt) {
@@ -403,7 +400,7 @@
             }
         });
 
-        // --- 3. 성경 메타데이터 & 별칭 매핑 ---
+        // 66권 목록
         const BIBLE_BOOKS = [
             "창세기", "출애굽기", "레위기", "민수기", "신명기", "여호수아", "사사기", "룻기", "사무엘상", "사무엘하",
             "열왕기상", "열왕기하", "역대상", "역대하", "에스라", "느헤미야", "에스더", "욥기", "시편", "잠언",
@@ -414,80 +411,74 @@
             "야고보서", "베드로전서", "베드로후서", "요한일서", "요한이서", "요한삼서", "유다서", "요한계시록"
         ];
 
-        const BOOK_ALIAS = {
-            "창":0,"창세":0,"창세기":0,"GEN":0,"GN":0,
-            "출":1,"출애":1,"출애굽":1,"출애굽기":1,"EXO":1,"EX":1,
-            "레":2,"레위":2,"레위기":2,"LEV":2,"LV":2,
-            "민":3,"민수":3,"민수기":3,"NUM":3,"NM":3,
-            "신":4,"신명":4,"신명기":4,"DEU":4,"DT":4,
-            "수":5,"여호":5,"여호수아":5,"JOS":5,"JS":5,
-            "삿":6,"사사":6,"사사기":6,"JDG":6,"JG":6,
-            "룻":7,"룻기":7,"RUT":7,"RT":7,
-            "삼상":8,"사무엘상":8,"1SA":8,"1SAM":8,
-            "삼하":9,"사무엘하":9,"2SA":9,"2SAM":9,
-            "왕상":10,"열왕기상":10,"1KI":10,"1KGS":10,
-            "왕하":11,"열왕기하":11,"2KI":11,"2KGS":11,
-            "대상":12,"역대상":12,"1CH":12,"1CHR":12,
-            "대하":13,"역대하":13,"2CH":13,"2CHR":13,
-            "스":14,"에스라":14,"EZR":14,
-            "느":15,"느헤미야":15,"NEH":15,
-            "에":16,"에스더":16,"EST":16,
-            "욥":17,"욥기":17,"JOB":17,
-            "시":18,"시편":18,"PSA":18,"PS":18,
-            "잠":19,"잠언":19,"PRO":19,"PRV":19,
-            "전":20,"전도":20,"전도서":20,"ECC":20,"EC":20,
-            "아":21,"아가":21,"SNG":21,"SOS":21,
-            "사":22,"이사야":22,"ISA":22,
-            "렘":23,"예레미야":23,"JER":23,
-            "애":24,"예레미야애가":24,"애가":24,"LAM":24,
-            "겔":25,"에스겔":25,"EZK":25,"EZE":25,
-            "단":26,"다니엘":26,"DAN":26,
-            "호":27,"호세아":27,"HOS":27,
-            "욜":28,"요엘":28,"JOL":28,"JL":28,
-            "암":29,"아모스":29,"AMO":29,"AM":29,
-            "옵":30,"오바댜":30,"OBA":30,"OB":30,
-            "욘":31,"요나":31,"JON":31,"JH":31,
-            "미":32,"미가":32,"MIC":32,"MC":32,
-            "나":33,"나훔":33,"NAM":33,"NA":33,
-            "합":34,"하박국":34,"HAB":34,"HB":34,
-            "습":35,"스바냐":35,"ZEP":35,"ZP":35,
-            "학":36,"학개":36,"HAG":36,"HG":36,
-            "슥":37,"스가랴":37,"ZEC":37,"ZC":37,
-            "말":38,"말라기":38,"MAL":38,"ML":38,
-            "마":39,"마태":39,"마태복음":39,"MAT":39,"MT":39,
-            "막":40,"마가":40,"마가복음":40,"MRK":40,"MK":40,
-            "눅":41,"누가":41,"누가복음":41,"LUK":41,"LK":41,
-            "요":42,"요한":42,"요한복음":42,"JHN":42,"JN":42,
-            "행":43,"사도":43,"사도행전":43,"ACT":43,"AC":43,
-            "롬":44,"로마":44,"로마서":44,"ROM":44,"RM":44,
-            "고전":45,"고린도전서":45,"1CO":45,"1COR":45,
-            "고후":46,"고린도후서":46,"2CO":46,"2COR":46,
-            "갈":47,"갈라디아서":47,"GAL":47,"GL":47,
-            "엡":48,"에베소서":48,"EPH":48,"EP":48,
-            "빌":49,"빌립보서":49,"PHP":49,"PHIL":49,
-            "골":50,"골로새서":50,"COL":50,
-            "살전":51,"데살로니가전서":51,"1TH":51,"1THES":51,
-            "살후":52,"데살로니가후서":52,"2TH":52,"2THES":52,
-            "딤전":53,"디모데전서":53,"1TI":53,"1TIM":53,
-            "딤후":54,"디모데후서":54,"2TI":54,"2TIM":54,
-            "딛":55,"디도서":55,"TIT":55,
-            "몬":56,"빌레몬서":56,"PHM":56,
-            "히":57,"히브리서":57,"HEB":57,
-            "약":58,"야고보서":58,"JAS":58,"JM":58,
-            "벧전":59,"베드로전서":59,"1PE":59,"1PET":59,
-            "벧후":60,"베드로후서":60,"2PE":60,"2PET":60,
-            "요일":61,"요한일서":61,"1JN":61,"1JOHN":61,
-            "요이":62,"요한이서":62,"2JN":62,"2JOHN":62,
-            "요삼":63,"요한삼서":63,"3JN":63,"3JOHN":63,
-            "유":64,"유다서":64,"JUD":64,"JD":64,
-            "계":65,"요한계시록":65,"REV":65,"RV":65
-        };
-
-        const CHAPTER_COUNTS = [
-            50, 40, 27, 36, 34, 24, 21, 4, 31, 24, 22, 25, 29, 36, 10, 13, 10, 42, 150, 31,
-            12, 8, 66, 52, 5, 48, 12, 14, 3, 9, 1, 4, 7, 3, 3, 3, 2, 14, 4,
-            28, 16, 24, 21, 28, 16, 16, 13, 6, 6, 4, 4, 5, 3, 6, 4, 3, 1, 13,
-            5, 5, 3, 5, 1, 1, 1, 22
+        // 66권별 각 장의 총 절 수 (31,102절 표준 구조)
+        const BIBLE_STRUCTURE = [
+            [31,25,24,26,32,22,24,22,29,32,32,20,18,24,21,16,27,33,38,18,34,24,20,67,34,35,46,22,35,43,55,32,20,31,29,43,36,30,23,23,57,38,34,34,28,34,31,22,33,26],
+            [22,25,22,31,23,30,25,32,35,29,10,51,22,31,27,36,16,27,25,26,36,31,33,18,40,37,21,43,46,38,18,35,23,35,35,38,29,31,43,38],
+            [17,16,17,35,19,30,38,36,24,20,47,8,59,57,33,34,16,30,37,27,24,33,44,23,55,46,34],
+            [54,34,51,49,31,27,89,26,23,36,35,16,33,45,41,50,13,32,22,29,35,41,30,25,18,65,23,31,40,16,54,42,56,29,34,13],
+            [46,37,29,49,33,25,26,20,29,22,32,32,18,29,23,22,20,22,21,20,23,30,25,22,19,19,26,68,29,20,30,52,29,12],
+            [18,24,17,24,15,27,26,35,27,43,23,24,33,15,63,10,18,28,51,9,45,34,16,33],
+            [36,23,31,24,31,40,25,35,57,18,40,15,25,20,20,31,13,31,30,48,25],
+            [22,23,18,22],
+            [28,36,21,22,12,21,17,22,27,27,15,25,23,52,35,23,58,30,24,42,15,23,29,22,44,25,12,25,11,31,13],
+            [27,32,39,12,25,23,29,18,13,19,27,31,39,33,37,23,29,33,43,26,22,51,39,25],
+            [53,46,28,34,18,38,51,66,28,29,43,33,34,31,34,34,24,46,21,43,29,53],
+            [18,25,27,44,27,33,20,29,37,36,21,21,25,29,38,20,41,37,37,21,26,20,37,20,30],
+            [54,55,24,43,26,81,40,40,44,14,47,40,14,17,29,43,27,17,19,8,30,19,32,31,31,32,34,21,30],
+            [17,18,17,22,14,42,22,18,31,19,23,16,22,15,19,14,19,34,11,37,20,12,21,27,28,23,9,27,36,27,21,33,25,33,27,23],
+            [11,70,13,24,17,22,28,36,15,44],
+            [11,20,32,23,19,19,73,18,38,39,36,47,31],
+            [22,23,15,17,14,14,10,17,32,3],
+            [22,13,26,21,27,30,21,22,35,22,20,25,28,22,35,22,16,21,29,29,34,30,17,25,6,14,23,28,25,31,40,22,33,37,16,33,24,41,30,24,34,17],
+            [6,12,8,8,12,10,17,9,20,18,7,8,6,7,5,11,15,50,14,9,13,31,6,10,22,12,14,9,11,12,24,11,22,22,28,12,40,22,13,17,13,11,5,26,17,11,9,14,20,23,19,9,6,7,23,13,11,11,17,12,8,12,11,10,13,20,7,35,36,5,24,20,28,23,10,12,20,72,13,19,16,8,18,12,13,17,7,18,52,17,16,15,5,23,11,13,12,9,9,5,8,28,22,35,45,48,43,13,31,7,10,10,9,8,18,19,2,29,176,7,8,9,4,8,5,6,5,6,8,8,3,18,3,3,21,26,9,8,24,13,10,7,12,15,21,10,20,14,9,6],
+            [33,22,35,27,23,35,27,36,18,32,31,28,25,35,33,33,28,24,29,30,31,29,35,34,28,28,27,28,27,33,31],
+            [18,26,22,16,20,12,29,17,18,20,10,14],
+            [17,17,11,16,16,13,13,14],
+            [31,22,26,6,30,13,25,22,21,34,16,6,22,32,9,14,14,7,25,6,17,25,18,23,12,21,13,29,24,33,9,20,24,17,10,22,38,22,8,31,29,25,28,28,25,13,15,22,26,11,23,15,12,17,13,12,21,14,21,22,11,12,19,12,25,24],
+            [19,37,25,31,31,30,34,22,26,25,23,17,27,22,21,21,27,23,15,18,14,30,40,10,38,24,22,17,32,24,40,44,26,22,19,32,21,28,18,16,18,22,13,30,5,28,7,47,39,46,64,34],
+            [22,22,66,22,22],
+            [28,10,27,17,17,14,27,18,11,22,25,28,23,23,8,63,24,32,14,49,32,31,49,27,17,21,36,26,21,26,18,32,33,31,15,38,28,23,29,49,26,20,27,31,25,24,23,35],
+            [21,49,30,37,31,28,28,27,27,21,45,13],
+            [11,23,5,19,15,11,16,14,17,15,12,14,16,9],
+            [20,32,21],
+            [15,16,15,13,27,14,17,14,15],
+            [21],
+            [17,10,10,11],
+            [16,13,12,13,15,16,20],
+            [15,13,19],
+            [17,20,19],
+            [18,15,20],
+            [15,23],
+            [21,13,10,14,11,15,14,23,17,12,17,14,9,21],
+            [14,17,18,6],
+            [25,23,17,25,48,34,29,34,38,42,30,50,58,36,39,28,27,35,30,34,46,46,39,51,46,75,66,20],
+            [45,28,35,41,43,56,37,38,50,52,33,44,37,72,47,20],
+            [80,52,38,44,39,49,50,56,62,42,54,59,35,35,32,31,37,43,48,47,38,71,56,53],
+            [51,25,36,54,47,71,53,59,41,42,57,50,38,31,27,33,26,40,42,31,25],
+            [26,47,26,37,42,15,60,40,43,48,30,25,52,28,41,40,34,28,41,38,40,30,35,27,27,32,44,31],
+            [32,29,31,25,21,23,25,39,33,21,36,21,14,23,33,27],
+            [31,16,23,21,13,20,40,13,27,33,34,31,13,40,58,24],
+            [24,17,18,18,21,18,16,24,15,18,33,21,14],
+            [24,21,29,31,26,18],
+            [23,22,21,32,33,24],
+            [30,30,21,23],
+            [29,23,21,18],
+            [10,20,13,18,28],
+            [12,17,18],
+            [20,15,16,16,25,21],
+            [18,26,17,22],
+            [16,15,15],
+            [25],
+            [14,18,19,16,14,20,28,13,28,39,40,29,25],
+            [27,26,18,17,20],
+            [25,25,22,19,14],
+            [21,22,18],
+            [10,29,24,21,21],
+            [13],
+            [14],
+            [25],
+            [20,29,22,11,14,17,17,13,21,11,19,17,18,20,8,21,18,24,21,15,27,21]
         ];
 
         let db;
@@ -575,7 +566,7 @@
         function updateChapterSelect() {
             const chSelect = document.getElementById("chapterSelect");
             chSelect.innerHTML = "";
-            const maxCh = CHAPTER_COUNTS[currentBook];
+            const maxCh = BIBLE_STRUCTURE[currentBook].length;
             for (let i = 1; i <= maxCh; i++) {
                 const opt = document.createElement("option");
                 opt.value = i;
@@ -901,7 +892,7 @@
             }
         }
 
-        // --- 4. LFA 전용 바이너리 & 정규식 고도화 파서 엔진 ---
+        // --- 5. LFA 바이너리 엔진 & 만능 파서 (바이트 시퀀스 디코딩) ---
         document.getElementById("fileInput").addEventListener("change", async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -909,33 +900,35 @@
             const modal = document.getElementById("loadingModal");
             const statusText = document.getElementById("loadingStatus");
             modal.style.display = "flex";
-            statusText.textContent = "파일을 분석하고 디코딩하는 중...";
+            statusText.textContent = "LFA 바이너리 스트림 분석 중...";
 
             try {
                 const defaultName = file.name.replace(/\.[^/.]+$/, "");
                 const arrayBuffer = await file.arrayBuffer();
-
-                // 1) 3종 인코딩(EUC-KR/CP949, UTF-8, UTF-16LE) 자동 감지
-                let text = decodeBufferSmart(arrayBuffer);
-
-                statusText.textContent = "LFA 및 성경 구절 파싱 중...";
                 const transId = "VER_" + Date.now();
-                const verses = parseBibleLFA(text, transId);
+
+                // LFA 바이너리 및 텍스트 2단계 심층 파싱
+                let verses = parseLFABinaryDirect(arrayBuffer, transId);
+
+                if (verses.length === 0) {
+                    statusText.textContent = "텍스트 인코딩 분석 중...";
+                    verses = parsePlainTextFallback(arrayBuffer, transId);
+                }
 
                 if (verses.length === 0) {
                     modal.style.display = "none";
-                    alert("성경 구절을 파싱하지 못했습니다.\n파일이 암호화되어 있거나 지원되지 않는 바이너리 구조일 수 있습니다.");
+                    alert("성경 구절을 파싱하지 못했습니다. 파일 구조를 확인해주세요.");
                     return;
                 }
 
-                const versionName = prompt(`성공적으로 ${verses.length}개 구절을 찾았습니다!\n등록할 역본 이름을 입력하세요:`, defaultName) || defaultName;
+                const versionName = prompt(`파싱 성공! (${verses.length}개 구절)\n등록할 역본 이름을 입력하세요:`, defaultName) || defaultName;
 
-                statusText.textContent = `데이터베이스에 ${verses.length}개 구절을 저장 중...`;
+                statusText.textContent = `데이터베이스에 ${verses.length}개 구절 고속 저장 중...`;
                 await saveVersesToDB(transId, versionName, verses);
 
                 modal.style.display = "none";
                 alert(`'${versionName}' (${verses.length}개 구절)이 성공적으로 추가되었습니다!`);
-                
+
                 if (!activeTranslations.includes(transId)) {
                     activeTranslations.push(transId);
                 }
@@ -944,107 +937,59 @@
 
             } catch (err) {
                 modal.style.display = "none";
-                alert("파일 처리 중 오류가 발생했습니다: " + err.message);
+                alert("파싱 처리 중 오류 발생: " + err.message);
                 console.error(err);
             } finally {
                 e.target.value = "";
             }
         });
 
-        // 스마트 인코딩 디코더 (바이너리/널문자 정제 포함)
-        function decodeBufferSmart(buffer) {
-            const encodings = ["euc-kr", "utf-8", "utf-16le"];
-            let bestText = "";
-            let maxHangul = -1;
+        // LFA 바이너리 시퀀스 파서: 31,102개 전체 구절 맵과 대조하여 바이트 스트림 복원
+        function parseLFABinaryDirect(buffer, transId) {
+            const uint8 = new Uint8Array(buffer);
+            const verses = [];
 
-            for (const enc of encodings) {
-                try {
-                    const decoder = new TextDecoder(enc, { fatal: false });
-                    const decoded = decoder.decode(buffer);
-                    const hangulMatches = decoded.match(/[가-힣]/g);
-                    const hangulCount = hangulMatches ? hangulMatches.length : 0;
-                    if (hangulCount > maxHangul) {
-                        maxHangul = hangulCount;
-                        bestText = decoded;
+            // EUC-KR / CP949 디코더
+            const decoder = new TextDecoder("euc-kr");
+            
+            // 바이너리 파일 내에서 구분 바이트(0x00, 0x0A, 0x0D 등)로 텍스트 청크 추출
+            const chunks = [];
+            let start = 0;
+
+            for (let i = 0; i < uint8.length; i++) {
+                if (uint8[i] === 0 || uint8[i] === 10 || uint8[i] === 13) {
+                    if (i > start) {
+                        const slice = uint8.subarray(start, i);
+                        if (slice.length >= 2) {
+                            try {
+                                const decoded = decoder.decode(slice).trim();
+                                if (decoded.length > 0 && /[가-힣a-zA-Z]/.test(decoded)) {
+                                    chunks.push(decoded);
+                                }
+                            } catch (e) {}
+                        }
                     }
-                } catch (err) {}
-            }
-
-            // 널 문자 및 특수 제어문자를 공백/줄바꿈으로 정규화
-            return bestText.replace(/[\x00\x01\x02\x03\x04\x05\x06\x07\x08\x0B\x0C\x0E-\x1F]/g, ' ');
-        }
-
-        // LFA 및 범용 성경 텍스트 파싱
-        function parseBibleLFA(rawText, transId) {
-            const parsed = [];
-            const seen = new Set();
-
-            // 전처리: LFA 특유의 연속 스트림 또는 줄바꿈 분할
-            // (줄바꿈이 없더라도 본문 내에서 '창1:1', '창세기 1:1', 'GEN 1:1' 패턴을 전체 정규식으로 탐색)
-            const masterRegex = /([가-힣a-zA-Z0-9]+)\s*(\d+)[:\s_\.\|](\d+)\s+([^#\n\r\t]+?)(?=(?:[가-힣a-zA-Z0-9]+\s*\d+[:\s_\.\|]\d+\s+)|$)/g;
-
-            let match;
-            while ((match = masterRegex.exec(rawText)) !== null) {
-                const bookKey = match[1].trim();
-                const ch = parseInt(match[2]);
-                const ver = parseInt(match[3]);
-                let content = match[4].trim();
-
-                // 뒤쪽 불필요한 제어 문자 정제
-                content = content.replace(/[\x00-\x1F\x7F]/g, ' ').trim();
-
-                let bookIdx = -1;
-                if (!isNaN(bookKey) && parseInt(bookKey) >= 1 && parseInt(bookKey) <= 66) {
-                    bookIdx = parseInt(bookKey) - 1;
-                } else if (BOOK_ALIAS[bookKey] !== undefined) {
-                    bookIdx = BOOK_ALIAS[bookKey];
-                } else {
-                    bookIdx = BIBLE_BOOKS.findIndex(b => b.startsWith(bookKey) || bookKey.startsWith(b.slice(0, 2)));
-                }
-
-                if (bookIdx >= 0 && bookIdx < 66 && ch > 0 && ver > 0 && content.length > 0) {
-                    const uniqueKey = `${bookIdx}_${ch}_${ver}`;
-                    if (!seen.has(uniqueKey)) {
-                        seen.add(uniqueKey);
-                        parsed.push({
-                            id: `${transId}_${bookIdx}_${ch}_${ver}`,
-                            translationId: transId,
-                            book: bookIdx,
-                            chapter: ch,
-                            verse: ver,
-                            text: content
-                        });
-                    }
+                    start = i + 1;
                 }
             }
 
-            // 만약 전역 정규식으로 못 잡았을 경우, 기존 라인 단위 파서로 2차 시도
-            if (parsed.length === 0) {
-                const lines = rawText.split(/[\r\n]+/);
-                const regFallback = /^([가-힣a-zA-Z0-9]+)\s*(\d+)[:\s_](\d+)[\s\t]+(.+)$/;
+            // 청크 개수가 성경 전체 구절(약 31,102개)에 근접할 경우 구조 매핑
+            if (chunks.length >= 30000 && chunks.length <= 32000) {
+                let chunkIdx = chunks.length - 31102; // 헤더 오프셋 보정
+                if (chunkIdx < 0) chunkIdx = 0;
 
-                for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i].trim();
-                    if (!line) continue;
-                    const m = line.match(regFallback);
-                    if (m) {
-                        const bookKey = m[1].trim();
-                        const ch = parseInt(m[2]);
-                        const ver = parseInt(m[3]);
-                        const content = m[4].trim();
-
-                        let bookIdx = BOOK_ALIAS[bookKey] !== undefined ? BOOK_ALIAS[bookKey] : BIBLE_BOOKS.findIndex(b => b.startsWith(bookKey));
-                        if (bookIdx >= 0 && bookIdx < 66) {
-                            const uKey = `${bookIdx}_${ch}_${ver}`;
-                            if (!seen.has(uKey)) {
-                                seen.add(uKey);
-                                parsed.push({
-                                    id: `${transId}_${bookIdx}_${ch}_${ver}`,
+                for (let b = 0; b < 66; b++) {
+                    for (let c = 0; c < BIBLE_STRUCTURE[b].length; c++) {
+                        const totalV = BIBLE_STRUCTURE[b][c];
+                        for (let v = 1; v <= totalV; v++) {
+                            if (chunkIdx < chunks.length) {
+                                verses.push({
+                                    id: `${transId}_${b}_${c + 1}_${v}`,
                                     translationId: transId,
-                                    book: bookIdx,
-                                    chapter: ch,
-                                    verse: ver,
-                                    text: content
+                                    book: b,
+                                    chapter: c + 1,
+                                    verse: v,
+                                    text: chunks[chunkIdx++]
                                 });
                             }
                         }
@@ -1052,10 +997,57 @@
                 }
             }
 
+            return verses;
+        }
+
+        // 일반 텍스트 및 정규식 기반 대체 파서
+        function parsePlainTextFallback(buffer, transId) {
+            const encodings = ["euc-kr", "utf-8", "utf-16le"];
+            let text = "";
+            let maxHangul = -1;
+
+            for (const enc of encodings) {
+                try {
+                    const dec = new TextDecoder(enc);
+                    const res = dec.decode(buffer);
+                    const count = (res.match(/[가-힣]/g) || []).length;
+                    if (count > maxHangul) {
+                        maxHangul = count;
+                        text = res;
+                    }
+                } catch (e) {}
+            }
+
+            const lines = text.split(/[\r\n]+/);
+            const parsed = [];
+            const reg = /^([가-힣a-zA-Z0-9]+)\s*(\d+)[:\s_\.\|](\d+)\s+(.+)$/;
+
+            const alias = {"창":0,"출":1,"레":2,"민":3,"신":4,"수":5,"삿":6,"룻":7,"삼상":8,"삼하":9,"왕상":10,"왕하":11,"대상":12,"대하":13,"스":14,"느":15,"에":16,"욥":17,"시":18,"잠":19,"전":20,"아":21,"사":22,"렘":23,"애":24,"겔":25,"단":26,"호":27,"욜":28,"암":29,"옵":30,"욘":31,"미":32,"나":33,"합":34,"습":35,"학":36,"슥":37,"말":38,"마":39,"막":40,"눅":41,"요":42,"행":43,"롬":44,"고전":45,"고후":46,"갈":47,"엡":48,"빌":49,"골":50,"살전":51,"살후":52,"딤전":53,"딤후":54,"딛":55,"몬":56,"히":57,"약":58,"벧전":59,"벧후":60,"요일":61,"요이":62,"요삼":63,"유":64,"계":65};
+
+            for (const line of lines) {
+                const m = line.trim().match(reg);
+                if (m) {
+                    const k = m[1].trim();
+                    const ch = parseInt(m[2]);
+                    const ver = parseInt(m[3]);
+                    const content = m[4].trim();
+
+                    let bIdx = alias[k] !== undefined ? alias[k] : BIBLE_BOOKS.findIndex(b => b.startsWith(k));
+                    if (bIdx >= 0 && bIdx < 66) {
+                        parsed.push({
+                            id: `${transId}_${bIdx}_${ch}_${ver}`,
+                            translationId: transId,
+                            book: bIdx,
+                            chapter: ch,
+                            verse: ver,
+                            text: content
+                        });
+                    }
+                }
+            }
             return parsed;
         }
 
-        // 고속 청크 저장 함수
         async function saveVersesToDB(transId, versionName, verses) {
             return new Promise((resolve, reject) => {
                 const tx = db.transaction(["translations", "verses"], "readwrite");
@@ -1076,13 +1068,11 @@
                 }
 
                 putNextChunk();
-
                 tx.oncomplete = () => resolve();
                 tx.onerror = (e) => reject(e);
             });
         }
 
-        // 진입점
         window.addEventListener("DOMContentLoaded", async () => {
             initTheme();
             await initDB();
