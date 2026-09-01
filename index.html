@@ -179,21 +179,78 @@
             background: var(--primary-hover);
         }
 
+        /* 역본 바 */
         .controls {
-            padding: 8px 16px;
+            padding: 6px 12px;
             background: var(--surface);
             border-bottom: 1px solid var(--border);
             display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
             align-items: center;
             font-size: 14px;
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
         }
 
         .version-checkboxes {
             display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: nowrap;
+        }
+
+        /* 드래그 & 롱프레스 가능한 역본 칩 디자인 */
+        .version-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: var(--btn-sub-bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 13.5px;
+            cursor: grab;
+            user-select: none;
+            -webkit-user-select: none;
+            transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease;
+        }
+
+        .version-chip.active {
+            border-color: var(--primary);
+            background: var(--highlight);
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .version-chip.dragging {
+            opacity: 0.4;
+            transform: scale(0.96);
+        }
+
+        .version-chip input[type="checkbox"] {
+            cursor: pointer;
+            margin: 0;
+        }
+
+        .version-chip-title {
+            cursor: pointer;
+        }
+
+        .version-del-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 14px;
+            line-height: 1;
+            padding: 0 0 0 2px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .version-del-btn:hover {
+            color: #ef4444;
         }
 
         .view-banner {
@@ -207,22 +264,20 @@
             color: var(--banner-text);
         }
 
-        /* 좌우 여백 균등화 설정 */
         .container {
             max-width: 800px;
-            margin: 12px auto;
-            padding: 0 12px; /* 좌우 여백 균등 */
+            margin: 10px auto;
+            padding: 0 4px;
         }
 
-        /* 본문 구절 아이템 - 좌측 패딩 축소 및 대칭 맞춤 */
         .verse-item {
-            padding: 8px 6px; /* 좌우 패딩을 6px로 축소하여 좌측 여백 불균형 해결 */
-            border-radius: 6px;
-            margin-bottom: 4px;
+            padding: 6px 2px;
+            border-radius: 4px;
+            margin-bottom: 2px;
             cursor: pointer;
             display: flex;
             align-items: flex-start;
-            gap: 6px; /* 절 번호와 본문 사이의 간격을 6px로 좁힘 */
+            gap: 4px;
         }
 
         .verse-item:hover {
@@ -233,13 +288,13 @@
             background: var(--highlight);
         }
 
-        /* 절 번호 영역을 컴팩트하게 조정 */
         .verse-num {
             color: var(--primary);
             font-weight: 700;
             font-size: calc(var(--bible-font-size) - 1.5px);
-            min-width: 18px; /* 최소 너비를 줄여 불필요한 좌측 공백 제거 */
+            min-width: 14px;
             padding-top: 1px;
+            padding-left: 2px;
             text-align: right;
             user-select: none;
             flex-shrink: 0;
@@ -381,8 +436,8 @@
         </div>
     </header>
 
+    <!-- '역본' 글자 제거 & 가로 배치 -->
     <div class="controls">
-        <span style="font-weight: bold; color: var(--text-muted);">역본:</span>
         <div class="version-checkboxes" id="versionSelector"></div>
     </div>
 
@@ -582,6 +637,7 @@
         let currentBook = 0;
         let currentChapter = 1;
         let activeTranslations = [];
+        let translationOrder = []; // 역본 순서 배열
         let selectedVerses = new Set();
         let isSearchMode = false;
         let currentSearchQuery = "";
@@ -696,6 +752,20 @@
             }
         }
 
+        // --- 역본 순서 저장 & 불러오기 & 렌더링 ---
+        function loadSavedOrder() {
+            try {
+                const saved = localStorage.getItem('ybible_trans_order');
+                return saved ? JSON.parse(saved) : [];
+            } catch(e) {
+                return [];
+            }
+        }
+
+        function saveOrder(order) {
+            localStorage.setItem('ybible_trans_order', JSON.stringify(order));
+        }
+
         async function updateTranslationCheckboxes() {
             const container = document.getElementById("versionSelector");
             container.innerHTML = "";
@@ -711,50 +781,212 @@
                     translationNameMap[item.id] = item.name;
                 });
 
+                const savedOrder = loadSavedOrder();
+                
+                // 저장된 순서대로 정렬하고, 새로 추가된 역본은 뒤에 배치
                 list.sort((a, b) => {
-                    const getRank = (name) => {
-                        if (name.includes("개역개정")) return 1;
-                        if (name.includes("개역한글")) return 2;
-                        if (name.toUpperCase().includes("TNIV")) return 3;
-                        if (name.toUpperCase().includes("NIV")) return 4;
-                        return 5;
-                    };
-                    return getRank(a.name) - getRank(b.name);
+                    const idxA = savedOrder.indexOf(a.id);
+                    const idxB = savedOrder.indexOf(b.id);
+                    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                    if (idxA !== -1) return -1;
+                    if (idxB !== -1) return 1;
+                    return 0;
                 });
+
+                translationOrder = list.map(item => item.id);
+                saveOrder(translationOrder);
 
                 if (list.length > 0 && activeTranslations.length === 0) {
                     activeTranslations = [list[0].id];
                 }
 
-                list.forEach(item => {
-                    const label = document.createElement("label");
-                    label.style.display = "inline-flex";
-                    label.style.alignItems = "center";
-                    label.style.marginRight = "10px";
+                list.forEach((item, index) => {
+                    const chip = document.createElement("div");
+                    chip.className = "version-chip" + (activeTranslations.includes(item.id) ? " active" : "");
+                    chip.draggable = true;
+                    chip.dataset.id = item.id;
+                    chip.dataset.index = index;
 
                     const chk = document.createElement("input");
                     chk.type = "checkbox";
                     chk.value = item.id;
                     chk.checked = activeTranslations.includes(item.id);
 
-                    chk.addEventListener("change", () => {
+                    const titleSpan = document.createElement("span");
+                    titleSpan.className = "version-chip-title";
+                    titleSpan.textContent = item.name;
+
+                    const delBtn = document.createElement("button");
+                    delBtn.className = "version-del-btn";
+                    delBtn.innerHTML = "&times;";
+                    delBtn.title = `'${item.name}' 역본 삭제`;
+                    delBtn.addEventListener("click", (e) => {
+                        e.stopPropagation();
+                        deleteTranslation(item.id, item.name);
+                    });
+
+                    // 체크박스/클릭 전환
+                    const toggleActive = () => {
                         if (chk.checked) {
-                            activeTranslations.push(item.id);
+                            if (!activeTranslations.includes(item.id)) activeTranslations.push(item.id);
                         } else {
                             activeTranslations = activeTranslations.filter(id => id !== item.id);
                         }
-                        if (isSearchMode) {
-                            handleSearch();
-                        } else {
-                            renderVerses();
-                        }
+                        chip.classList.toggle("active", chk.checked);
+                        if (isSearchMode) handleSearch();
+                        else renderVerses();
+                    };
+
+                    chk.addEventListener("change", toggleActive);
+                    titleSpan.addEventListener("click", () => {
+                        chk.checked = !chk.checked;
+                        toggleActive();
                     });
 
-                    label.appendChild(chk);
-                    label.appendChild(document.createTextNode(" " + item.name));
-                    container.appendChild(label);
+                    // --- 드래그 & 드롭 순서 변경 이벤트 (PC 및 모바일 터치 대응) ---
+                    setupDragAndDrop(chip, container);
+
+                    chip.appendChild(chk);
+                    chip.appendChild(titleSpan);
+                    chip.appendChild(delBtn);
+                    container.appendChild(chip);
                 });
             };
+        }
+
+        // 역본 삭제 기능 (IndexedDB에서 역본 및 해당 성경 구절 전체 삭제)
+        async function deleteTranslation(transId, transName) {
+            if (!confirm(`'${transName}' 역본을 정말로 삭제하시겠습니까?\n(해당 역본의 모든 본문 데이터가 삭제됩니다)`)) {
+                return;
+            }
+
+            const modal = document.getElementById("loadingModal");
+            const statusText = document.getElementById("loadingStatus");
+            modal.style.display = "flex";
+            statusText.textContent = `'${transName}' 역본 데이터 삭제 중...`;
+
+            try {
+                const tx = db.transaction(["translations", "verses"], "readwrite");
+                tx.objectStore("translations").delete(transId);
+
+                const vStore = tx.objectStore("verses");
+                const index = vStore.index("query_idx");
+                
+                // 해당 역본의 모든 구절 색인 조회 및 삭제
+                for (let b = 0; b < 66; b++) {
+                    const maxCh = BIBLE_STRUCTURE[b].length;
+                    for (let c = 1; c <= maxCh; c++) {
+                        const range = IDBKeyRange.only([transId, b, c]);
+                        const req = index.openCursor(range);
+                        req.onsuccess = (e) => {
+                            const cursor = e.target.result;
+                            if (cursor) {
+                                vStore.delete(cursor.primaryKey);
+                                cursor.continue();
+                            }
+                        };
+                    }
+                }
+
+                await new Promise((resolve, reject) => {
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = (e) => reject(e);
+                });
+
+                activeTranslations = activeTranslations.filter(id => id !== transId);
+                translationOrder = translationOrder.filter(id => id !== transId);
+                saveOrder(translationOrder);
+
+                modal.style.display = "none";
+                alert(`'${transName}' 역본이 삭제되었습니다.`);
+                await updateTranslationCheckboxes();
+                renderVerses();
+            } catch (err) {
+                modal.style.display = "none";
+                alert("삭제 중 오류가 발생했습니다: " + err.message);
+            }
+        }
+
+        // 역본 칩 드래그 & 드롭 / 모바일 롱프레스 터치 스와프 핸들러
+        let draggedItem = null;
+        let touchDragElement = null;
+        let longPressTimer = null;
+
+        function setupDragAndDrop(chip, container) {
+            // PC Drag
+            chip.addEventListener("dragstart", (e) => {
+                draggedItem = chip;
+                chip.classList.add("dragging");
+                e.dataTransfer.effectAllowed = "move";
+            });
+
+            chip.addEventListener("dragend", () => {
+                chip.classList.remove("dragging");
+                draggedItem = null;
+                finalizeReorder(container);
+            });
+
+            chip.addEventListener("dragover", (e) => {
+                e.preventDefault();
+                if (!draggedItem || draggedItem === chip) return;
+                const bounding = chip.getBoundingClientRect();
+                const offset = e.clientX - bounding.left;
+                if (offset > bounding.width / 2) {
+                    chip.after(draggedItem);
+                } else {
+                    chip.before(draggedItem);
+                }
+            });
+
+            // Mobile Touch Long-Press Drag
+            chip.addEventListener("touchstart", (e) => {
+                if (e.touches.length > 1) return;
+                longPressTimer = setTimeout(() => {
+                    touchDragElement = chip;
+                    chip.classList.add("dragging");
+                    if (navigator.vibrate) navigator.vibrate(40);
+                }, 400); // 400ms 누르고 있으면 순서 이동 활성화
+            }, { passive: true });
+
+            chip.addEventListener("touchmove", (e) => {
+                if (!touchDragElement) {
+                    clearTimeout(longPressTimer);
+                    return;
+                }
+                const touch = e.touches[0];
+                const target = document.elementFromPoint(touch.clientX, touch.clientY);
+                const targetChip = target ? target.closest(".version-chip") : null;
+                if (targetChip && targetChip !== touchDragElement && targetChip.parentNode === container) {
+                    const bounding = targetChip.getBoundingClientRect();
+                    if (touch.clientX > bounding.left + bounding.width / 2) {
+                        targetChip.after(touchDragElement);
+                    } else {
+                        targetChip.before(touchDragElement);
+                    }
+                }
+            }, { passive: true });
+
+            const endTouch = () => {
+                clearTimeout(longPressTimer);
+                if (touchDragElement) {
+                    touchDragElement.classList.remove("dragging");
+                    touchDragElement = null;
+                    finalizeReorder(container);
+                }
+            };
+
+            chip.addEventListener("touchend", endTouch);
+            chip.addEventListener("touchcancel", endTouch);
+        }
+
+        function finalizeReorder(container) {
+            const newOrder = Array.from(container.querySelectorAll(".version-chip")).map(el => el.dataset.id);
+            translationOrder = newOrder;
+            saveOrder(translationOrder);
+
+            // 활성 역본 대조 순서도 변경된 순서에 맞춰 재정렬
+            activeTranslations.sort((a, b) => translationOrder.indexOf(a) - translationOrder.indexOf(b));
+            renderVerses();
         }
 
         function highlightText(text, keyword) {
@@ -1042,6 +1274,7 @@
             }
         }
 
+        // --- LFA 파일 추가 및 고속 저장 ---
         document.getElementById("fileInput").addEventListener("change", async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -1067,7 +1300,6 @@
                 const transId = "VER_" + Date.now();
 
                 let verses = [];
-
                 const cleanBuffer = findZipBuffer(arrayBuffer);
 
                 try {
