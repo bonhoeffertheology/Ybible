@@ -34,14 +34,14 @@
     }
 
     [data-theme="dark"] {
-      --bg-main: #090d16;
-      --bg-card: #131b2e;
-      --bg-subtle: #1e293b;
-      --border-color: #1e293b;
+      --bg-main: #000000;
+      --bg-card: #000000;
+      --bg-subtle: #121212;
+      --border-color: #262626;
       --text-main: #f8fafc;
-      --text-muted: #94a3b8;
+      --text-muted: #a3a3a3;
       --primary: #38bdf8;
-      --highlight: #1e3a5f;
+      --highlight: #1e293b;
     }
 
     * {
@@ -204,6 +204,7 @@
     #bibleScreen {
       transform: translateX(0);
       touch-action: pan-y;
+      background: var(--bg-card);
     }
 
     #bibleScreen.slide-out {
@@ -312,6 +313,7 @@
       padding-bottom: 12px;
       border-bottom: 1px solid var(--border-color);
       margin-bottom: 14px;
+      background: var(--bg-card);
     }
 
     .ai-result-body {
@@ -320,6 +322,7 @@
       font-size: 15.5px;
       line-height: 1.8;
       color: var(--text-main);
+      background: var(--bg-card);
     }
 
     .ai-result-body p {
@@ -353,6 +356,7 @@
       max-width: 440px;
       padding: 18px;
       box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      border: 1px solid var(--border-color);
     }
 
     .api-key-input {
@@ -969,14 +973,13 @@
       closeAiScreen();
     };
 
-    // --- AI 간결 해설 생성 엔진 (선택 구절: "(창1:1) 무슨뜻?" 형태 질의) ---
+    // --- AI 간결 해설 생성 엔진 ---
     document.getElementById("aiBtn").onclick = async () => {
       if (!selectedVerseRef) {
         alert("해설을 보실 성경 구절을 먼저 선택해 주세요.");
         return;
       }
 
-      // 약칭 구절 생성 (예: 창1:1, 요3:16)
       const shortBook = BIBLE_SHORT_NAMES[currentBook] || BIBLE_BOOKS[currentBook];
       const matchVerseNum = selectedVerseRef.match(/:(\d+)/);
       const vNumOnly = matchVerseNum ? matchVerseNum[1] : "1";
@@ -1026,7 +1029,6 @@
         }
       }
 
-      // API Key가 없을 때 Gemini 웹 바로가기 안내
       const geminiWebQuery = encodeURIComponent(`${userPromptQuery}`);
       resultBox.innerHTML += `
         <div style="background:var(--bg-subtle); border:1px solid var(--border-color); padding:16px; border-radius:8px; margin-top:12px;">
@@ -1054,7 +1056,7 @@
       document.getElementById("settingsModal").style.display = "none";
     }
 
-    // --- 테마 및 환경설정 (역본 이름 변경 & 삭제) ---
+    // --- 테마 및 환경설정 ---
     document.getElementById("themeBtn").onclick = () => {
       const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
       const nextTheme = currentTheme === "dark" ? "light" : "dark";
