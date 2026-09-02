@@ -49,6 +49,7 @@
       margin: 0;
       padding: 0;
       -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none; /* 태블릿 롱프레스 퀵메뉴 차단 */
       transition: background-color 0.2s ease, color 0.2s ease;
     }
 
@@ -61,6 +62,8 @@
       flex-direction: column;
       overflow: hidden;
       touch-action: pan-x pan-y;
+      user-select: none;
+      -webkit-user-select: none;
     }
 
     /* 1열: 작업표시줄 */
@@ -75,10 +78,20 @@
       z-index: 30;
     }
 
-    .tool-group-left, .tool-group-right {
+    .tool-group-left {
       display: flex;
       align-items: center;
       gap: 6px;
+      overflow-x: auto;
+      white-space: nowrap;
+      position: relative;
+    }
+
+    .tool-group-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
     }
 
     .tool-btn {
@@ -94,6 +107,11 @@
       cursor: pointer;
       font-size: 14px;
       font-weight: 600;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      touch-action: none; /* 드래그 전용 */
+      position: relative;
     }
 
     .tool-btn.btn-ai {
@@ -108,6 +126,12 @@
     .tool-btn.icon-only {
       width: 34px;
       padding: 0;
+    }
+
+    .tool-btn.dragging {
+      opacity: 0.4;
+      transform: scale(0.92);
+      border: 2px dashed var(--primary);
     }
 
     .install-badge-btn {
@@ -166,6 +190,7 @@
       cursor: pointer;
       user-select: none;
       -webkit-user-select: none;
+      -webkit-touch-callout: none;
       touch-action: none;
       position: relative;
     }
@@ -388,18 +413,22 @@
 </head>
 <body>
 
-  <!-- 1열: 작업표시줄 -->
+  <!-- 1열: 작업표시줄 (버튼 순서 롱프레스 이동 가능) -->
   <header class="top-toolbar">
-    <div class="tool-group-left">
-      <button class="tool-btn btn-ai" id="aiBtn" title="선택 구절 AI 해설">Ai</button>
-      <button class="tool-btn icon-only" id="themeBtn" title="화면 모드 전환">
+    <div class="tool-group-left" id="toolbarBtnGroup">
+      <button class="tool-btn btn-ai" id="aiBtn" data-tool="ai" title="선택 구절 AI 해설">Ai</button>
+      <button class="tool-btn icon-only" id="themeBtn" data-tool="theme" title="화면 모드 전환">
         <i id="themeIcon" data-lucide="moon" style="width:18px;height:18px;"></i>
       </button>
-      <button class="tool-btn icon-only" id="settingsBtn" title="설정 및 역본 관리">
+      <button class="tool-btn icon-only" id="settingsBtn" data-tool="settings" title="설정 및 역본 관리">
         <i data-lucide="settings" style="width:18px;height:18px;"></i>
       </button>
       <input type="file" id="lfaFileInput" accept="*/*" style="display:none;" />
-      <button class="tool-btn icon-only" onclick="document.getElementById('lfaFileInput').click()" title="성경 파일 추가">+</button>
+      <button class="tool-btn icon-only" id="addFileBtn" data-tool="add" onclick="document.getElementById('lfaFileInput').click()" title="성경 파일 추가">+</button>
+      <!-- '+' 버튼 바로 옆에 위치한 공유 버튼 -->
+      <button class="tool-btn icon-only" id="shareBtn" data-tool="share" title="선택 구절 공유">
+        <i data-lucide="share-2" style="width:18px;height:18px;"></i>
+      </button>
     </div>
     <div class="tool-group-right">
       <button class="tool-btn install-badge-btn" id="pwaInstallBtn">
@@ -468,6 +497,12 @@
   </div>
 
   <script>
+    // 태블릿 자체 롱프레스 퀵메뉴(contextmenu) 완전 비활성화
+    window.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      return false;
+    }, { capture: true });
+
     // --- 1. 본문 전용 핀치 줌 ---
     let currentFontSize = parseFloat(localStorage.getItem('ybible_font_size')) || 16.5;
     let initialDistance = 0;
@@ -808,80 +843,100 @@
         chip.textContent = item.name;
         chip.dataset.id = item.id;
 
-        setupRobustDragAndDrop(chip, bar);
+        setupRobustDragAndDrop(chip, bar, () => {
+          const newOrder = Array.from(bar.querySelectorAll('.version-chip')).map(el => el.dataset.id);
+          translationOrder = newOrder;
+          saveOrder(translationOrder);
+          activeTranslations.sort((a, b) => translationOrder.indexOf(a) - translationOrder.indexOf(b));
+          renderVerses();
+        });
         bar.appendChild(chip);
       });
     }
 
-    let activeDragChip = null;
-    let longPressTimer = null;
-    let isDragging = false;
+    // --- 상단 툴바 버튼 순서 로드 & 저장 & 롱프레스 이동 ---
+    function loadSavedToolbarOrder() {
+      try {
+        const saved = localStorage.getItem('ybible_toolbar_order');
+        return saved ? JSON.parse(saved) : ['ai', 'theme', 'settings', 'add', 'share'];
+      } catch(e) {
+        return ['ai', 'theme', 'settings', 'add', 'share'];
+      }
+    }
 
-    function setupRobustDragAndDrop(chip, container) {
-      chip.addEventListener('click', (e) => {
-        if (isDragging) return;
-        const id = chip.dataset.id;
-        if (activeTranslations.includes(id)) {
-          if (activeTranslations.length > 1) {
-            activeTranslations = activeTranslations.filter(t => t !== id);
-          }
-        } else {
-          activeTranslations.push(id);
-        }
-        updateVersionBar();
-        renderVerses();
+    function saveToolbarOrder(order) {
+      localStorage.setItem('ybible_toolbar_order', JSON.stringify(order));
+    }
+
+    function initToolbarOrder() {
+      const container = document.getElementById('toolbarBtnGroup');
+      const order = loadSavedToolbarOrder();
+      const btnMap = {};
+      Array.from(container.children).forEach(el => {
+        if (el.dataset.tool) btnMap[el.dataset.tool] = el;
       });
 
-      chip.addEventListener('touchstart', (e) => {
+      order.forEach(toolKey => {
+        if (btnMap[toolKey]) container.appendChild(btnMap[toolKey]);
+      });
+
+      Array.from(container.querySelectorAll('.tool-btn')).forEach(btn => {
+        setupRobustDragAndDrop(btn, container, () => {
+          const newOrder = Array.from(container.querySelectorAll('.tool-btn')).map(el => el.dataset.tool).filter(Boolean);
+          saveToolbarOrder(newOrder);
+        });
+      });
+    }
+
+    // --- 공통 롱프레스 터치 & 드래그 스왑 엔진 (태블릿 퀵메뉴 차단) ---
+    function setupRobustDragAndDrop(item, container, onReorderCallback) {
+      let activeDrag = null;
+      let longPressTimer = null;
+      let isDragging = false;
+
+      // 롱프레스 터치 처리
+      item.addEventListener('touchstart', (e) => {
         if (e.touches.length > 1) return;
         isDragging = false;
         longPressTimer = setTimeout(() => {
           isDragging = true;
-          activeDragChip = chip;
-          chip.classList.add('dragging');
+          activeDrag = item;
+          item.classList.add('dragging');
           if (navigator.vibrate) navigator.vibrate(50);
         }, 300);
       }, { passive: true });
 
-      chip.addEventListener('touchmove', (e) => {
-        if (!isDragging || !activeDragChip) {
+      item.addEventListener('touchmove', (e) => {
+        if (!isDragging || !activeDrag) {
           clearTimeout(longPressTimer);
           return;
         }
         const touch = e.touches[0];
         const targetElement = document.elementFromPoint(touch.clientX, touch.clientY);
-        const targetChip = targetElement ? targetElement.closest('.version-chip') : null;
+        const targetItem = targetElement ? targetElement.closest('.' + item.classList[0]) : null;
 
-        if (targetChip && targetChip !== activeDragChip && targetChip.parentNode === container) {
-          const rect = targetChip.getBoundingClientRect();
+        if (targetItem && targetItem !== activeDrag && targetItem.parentNode === container) {
+          const rect = targetItem.getBoundingClientRect();
           if (touch.clientX > rect.left + rect.width / 2) {
-            targetChip.after(activeDragChip);
+            targetItem.after(activeDrag);
           } else {
-            targetChip.before(activeDragChip);
+            targetItem.before(activeDrag);
           }
         }
       }, { passive: true });
 
       const finishTouch = () => {
         clearTimeout(longPressTimer);
-        if (activeDragChip) {
-          activeDragChip.classList.remove('dragging');
-          activeDragChip = null;
-          finalizeChipReorder(container);
+        if (activeDrag) {
+          activeDrag.classList.remove('dragging');
+          activeDrag = null;
+          if (onReorderCallback) onReorderCallback();
           setTimeout(() => { isDragging = false; }, 80);
         }
       };
 
-      chip.addEventListener('touchend', finishTouch);
-      chip.addEventListener('touchcancel', finishTouch);
-    }
-
-    function finalizeChipReorder(container) {
-      const newOrder = Array.from(container.querySelectorAll('.version-chip')).map(el => el.dataset.id);
-      translationOrder = newOrder;
-      saveOrder(translationOrder);
-      activeTranslations.sort((a, b) => translationOrder.indexOf(a) - translationOrder.indexOf(b));
-      renderVerses();
+      item.addEventListener('touchend', finishTouch);
+      item.addEventListener('touchcancel', finishTouch);
     }
 
     async function renderVerses() {
@@ -973,6 +1028,25 @@
       closeAiScreen();
     };
 
+    // --- 공유 버튼 기능 ---
+    document.getElementById("shareBtn").onclick = () => {
+      if (!selectedVerseRef || !selectedVerseText) {
+        alert("공유할 성경 구절을 먼저 선택해주세요.");
+        return;
+      }
+      const shareContent = `[${selectedVerseRef}]\n${selectedVerseText}`;
+      if (navigator.share) {
+        navigator.share({
+          title: selectedVerseRef,
+          text: shareContent
+        }).catch(() => {});
+      } else {
+        navigator.clipboard.writeText(shareContent).then(() => {
+          alert(`[${selectedVerseRef}] 구절이 클립보드에 복사되었습니다.`);
+        });
+      }
+    };
+
     // --- AI 해설 호출 엔진 ---
     document.getElementById("aiBtn").onclick = async () => {
       if (!selectedVerseRef) {
@@ -989,7 +1063,6 @@
       document.getElementById("aiTitle").textContent = `${selectedVerseRef} 해설`;
       const resultBox = document.getElementById("aiResultText");
       
-      // 요청 문구 수정: "해설을 준비하고 있습니다..."
       resultBox.innerHTML = `<div style="text-align:center; padding: 35px 0; color:var(--text-muted);">
         <i data-lucide="loader" class="spin" style="width:30px;height:30px;margin-bottom:10px;"></i><br>
         <strong>해설을 준비하고 있습니다...</strong>
@@ -1004,7 +1077,6 @@
         try {
           const prompt = `성경 구절 "${selectedVerseRef}" (${selectedVerseText})에 대해 "${userPromptQuery}"라는 질문에 답하듯이 자연스럽고 명료하게 핵심 뜻과 신학적/문맥적 의미를 설명해줘.`;
 
-          // 최상위 모델 순차 호출 (gemini-2.5-pro -> gemini-2.5-flash)
           let response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${apiKey}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1219,7 +1291,7 @@
 
         if (bestScore >= 2) {
           let clean = bestStr.replace(/^[가-힣a-zA-Z0-9\s]{1,15}\s*\d+[:\.\s_]\d+[\s\t]*/, '').trim();
-          clean = clean.replace(/^[\s\d:_\.\-\/\x00-\x1F\x7F\uFFFD\u25C6\u25A0\u4E00-\u9FFF]+/, '').trim();
+          clean = clean.replace(/^[\s\d:_\.\-\/\x00-\x1F\x7F\uFFFD\u25C6\u25A0]+/, '').trim();
           clean = clean.replace(/[\x00-\x1F\x7F\uFFFD]/g, '').trim();
 
           if (clean.length > 0 && /[가-힣a-zA-Z]/.test(clean)) {
@@ -1346,6 +1418,7 @@
       initTheme();
       await initDB();
       initSelectors();
+      initToolbarOrder();
       await updateVersionBar();
       renderVerses();
       lucide.createIcons();
