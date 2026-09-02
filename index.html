@@ -223,7 +223,6 @@
       transform: translateX(0);
     }
 
-    /* 구절 선택 스타일: 파란색 왼쪽 테두리 없음 */
     .verse-item {
       padding: 6px 6px;
       border-radius: 6px;
@@ -318,34 +317,24 @@
     .ai-result-body {
       flex: 1;
       overflow-y: auto;
-      font-size: 15px;
+      font-size: 15.5px;
       line-height: 1.8;
       color: var(--text-main);
     }
 
-    .ai-result-body h1, .ai-result-body h2, .ai-result-body h3 {
-      margin: 14px 0 6px 0;
-      color: var(--primary);
-      font-size: 1.15em;
+    .ai-result-body p {
+      margin-bottom: 12px;
     }
 
     .ai-result-body ul, .ai-result-body ol {
       margin-left: 20px;
-      margin-bottom: 10px;
+      margin-bottom: 12px;
     }
 
-    .ai-result-body p {
-      margin-bottom: 10px;
+    .ai-result-body strong {
+      color: var(--text-main);
     }
 
-    .ai-result-body blockquote {
-      border-left: 3px solid var(--primary);
-      padding-left: 10px;
-      margin: 10px 0;
-      color: var(--text-muted);
-    }
-
-    /* 모달 */
     .modal-backdrop {
       position: fixed;
       inset: 0;
@@ -398,7 +387,7 @@
   <!-- 1열: 작업표시줄 -->
   <header class="top-toolbar">
     <div class="tool-group-left">
-      <button class="tool-btn btn-ai" id="aiBtn" title="선택 구절 AI 심층 해설">Ai</button>
+      <button class="tool-btn btn-ai" id="aiBtn" title="선택 구절 AI 해설">Ai</button>
       <button class="tool-btn icon-only" id="themeBtn" title="화면 모드 전환">
         <i id="themeIcon" data-lucide="moon" style="width:18px;height:18px;"></i>
       </button>
@@ -420,7 +409,6 @@
     <select id="bookSelect"></select>
     <select id="chapterSelect"></select>
     <select id="verseSelect"></select>
-    <!-- AI 해설창으로 바로 넘어가는 오른쪽 화살표 버튼 -->
     <button class="tool-btn icon-only" id="goToAiBtn" title="AI 해설창 보기" style="margin-left:auto;">
       <i data-lucide="arrow-right" style="width:18px;height:18px;"></i>
     </button>
@@ -437,8 +425,7 @@
 
     <section class="screen-panel" id="aiScreen">
       <div class="ai-header">
-        <h3 id="aiTitle" style="font-size:16px;font-weight:700;">성경 심층 신학 주석</h3>
-        <!-- 글자 없이 심플한 왼쪽 화살표 아이콘 버튼 -->
+        <h3 id="aiTitle" style="font-size:16px;font-weight:700;">AI 구절 해설</h3>
         <button class="tool-btn icon-only" id="aiBackBtn" title="성경으로 돌아가기">
           <i data-lucide="arrow-left" style="width:18px;height:18px;"></i>
         </button>
@@ -460,7 +447,7 @@
       <div style="margin-bottom: 14px; background: var(--bg-subtle); padding: 12px; border-radius: 8px;">
         <label style="font-size: 13px; font-weight: 700; color: var(--text-main); display:block; margin-bottom:4px;">Gemini API Key 등록</label>
         <div style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 8px;">
-          모든 구절의 원어 어원 및 심층 신학 주석을 실시간으로 생성하려면 구글 AI Studio에서 무료로 발급받은 API 키를 등록하세요.
+          구글 AI Studio에서 무료로 발급받은 API 키를 등록하면 실시간으로 제미나이의 해설을 받아옵니다.
         </div>
         <input type="password" id="geminiApiKeyInput" class="api-key-input" placeholder="AI Studio 발급 API 키 입력 (AIzaSy...)" style="margin-bottom:8px;" />
         <button class="tool-btn" style="width:100%; background:var(--primary); color:#fff; border:none;" onclick="saveApiKey()">API 키 저장하기</button>
@@ -530,11 +517,10 @@
       }
     }, { passive: true });
 
-    // --- 좌우 스와이프 제스처 (손가락으로 넘기기) ---
+    // --- 좌우 스와이프 제스처 ---
     let touchStartX = 0;
     let touchStartY = 0;
 
-    // 성경 화면에서 왼쪽으로 넘기면(←) AI 창으로 이동
     bibleScreenEl.addEventListener('touchstart', (e) => {
       if (e.touches.length === 1) {
         touchStartX = e.touches[0].clientX;
@@ -552,7 +538,6 @@
       }
     }, { passive: true });
 
-    // AI 해설 화면에서 오른쪽으로 넘기면(→) 성경 창으로 복귀
     aiScreenEl.addEventListener('touchstart', (e) => {
       if (e.touches.length === 1) {
         touchStartX = e.touches[0].clientX;
@@ -570,7 +555,7 @@
       }
     }, { passive: true });
 
-    // --- PWA Service Worker & Install Prompt ---
+    // --- PWA Service Worker ---
     let deferredPrompt = null;
     const installBtn = document.getElementById('pwaInstallBtn');
 
@@ -604,6 +589,16 @@
       "마태복음","마가복음","누가복음","요한복음","사도행전","로마서","고린도전서","고린도후서","갈라디아서","에베소서",
       "빌립보서","골로새서","데살로니가전서","데살로니가후서","디모데전서","디모데후서","디도서","빌레몬서","히브리서",
       "야고보서","베드로전서","베드로후서","요한일서","요한이서","요한삼서","유다서","요한계시록"
+    ];
+
+    const BIBLE_SHORT_NAMES = [
+      "창","출","레","민","신","수","삿","룻","삼상","삼하",
+      "왕상","왕하","대상","대하","스","느","에","욥","시","잠",
+      "전","아","사","렘","애","겔","단","호","욜","암",
+      "옵","욘","미","나","합","습","학","슥","말",
+      "마","막","눅","요","행","롬","고전","고후","갈","엡",
+      "빌","골","살전","살후","딤전","딤후","딛","몬","히",
+      "약","벧전","벧후","요일","요이","요삼","유","계"
     ];
 
     const BIBLE_STRUCTURE = [
@@ -956,7 +951,6 @@
       });
     }
 
-    // --- 화면 슬라이딩 전환 함수 ---
     function openAiScreen() {
       document.getElementById("bibleScreen").classList.add("slide-out");
       document.getElementById("aiScreen").classList.add("slide-in");
@@ -967,29 +961,33 @@
       document.getElementById("aiScreen").classList.remove("slide-in");
     }
 
-    // 상단 네비게이션바의 오른쪽 화살표(→) 버튼 클릭 시 AI 창으로 이동
     document.getElementById("goToAiBtn").onclick = () => {
       openAiScreen();
     };
 
-    // AI창의 왼쪽 화살표(←) 버튼 클릭 시 성경 창으로 복귀
     document.getElementById("aiBackBtn").onclick = () => {
       closeAiScreen();
     };
 
-    // --- AI 심층 신학 주석 & Gemini API 직접 연동 엔진 ---
+    // --- AI 간결 해설 생성 엔진 (선택 구절: "(창1:1) 무슨뜻?" 형태 질의) ---
     document.getElementById("aiBtn").onclick = async () => {
       if (!selectedVerseRef) {
         alert("해설을 보실 성경 구절을 먼저 선택해 주세요.");
         return;
       }
 
-      document.getElementById("aiTitle").textContent = `${selectedVerseRef} 신학 주석 및 원어 분석`;
+      // 약칭 구절 생성 (예: 창1:1, 요3:16)
+      const shortBook = BIBLE_SHORT_NAMES[currentBook] || BIBLE_BOOKS[currentBook];
+      const matchVerseNum = selectedVerseRef.match(/:(\d+)/);
+      const vNumOnly = matchVerseNum ? matchVerseNum[1] : "1";
+      const shortRef = `${shortBook}${currentChapter}:${vNumOnly}`;
+      const userPromptQuery = `(${shortRef}) 무슨뜻?`;
+
+      document.getElementById("aiTitle").textContent = `${selectedVerseRef} 해설`;
       const resultBox = document.getElementById("aiResultText");
       resultBox.innerHTML = `<div style="text-align:center; padding: 35px 0; color:var(--text-muted);">
         <i data-lucide="loader" class="spin" style="width:30px;height:30px;margin-bottom:10px;"></i><br>
-        <strong>[${selectedVerseRef}]</strong><br>
-        Gemini AI가 해당 구절의 원어 어원 및 심층 신학 주석을 생성 중입니다...
+        <strong>${userPromptQuery}</strong> 질의 중입니다...
       </div>`;
       lucide.createIcons();
 
@@ -999,23 +997,7 @@
 
       if (apiKey) {
         try {
-          const prompt = `당신은 최고 수준의 기독교 개혁주의 조직신학자이자 성서 원어(히브리어/헬라어) 주석가입니다.
-성경 구절 "${selectedVerseRef}" (${selectedVerseText})에 대해 다음 구조를 정확히 지켜 전문적이고 풍성한 학술적 신학 주석을 작성해주세요.
-
-[필수 작성 형식]
-1. 본문 개요:
-- 본 구절이 속한 문맥과 성경 전체 구속사에서의 핵심적 위치 및 선언 내용.
-
-2. 원문 어원과 핵심 단어 분석:
-- 구약은 BHS 히브리어 원문(히브리어 표기 및 발음 음역), 신약은 NA28 헬라어 원문(헬라어 표기 및 발음 음역)을 상단에 제시할 것.
-- 본문에서 신학적으로 가장 중요한 핵심 어휘 3~5개를 선별하여, 각 단어의 [원어 표기, 음역, 기본형 어근, 문법 형태, 신학적·문맥적 의미]를 상세히 분석할 것.
-
-3. 신학적·사상적 핵심 의미:
-- 구속사적 맥락, 창조/언약/그리스도 중심적 의미, 교의학적/윤리학적 함의를 번호 목록(1, 2, 3)으로 깊이 있게 서술할 것.
-
-4. 출처:
-- 본문 원문 판본(BHS 또는 NA28) 및 공인 번역본.
-- 인용 및 참고한 표준 신학 사전(TDOT, TDNT, NIDOTTE, BDAG 등) 및 권위 있는 학술 주석(WBC, NICOT, NICNT, Anchor Yale 등)을 구체적으로 명기할 것.`;
+          const prompt = `성경 구절 "${selectedVerseRef}"에 대해 "${userPromptQuery}"라는 질문에 답하듯이 자연스럽고 명료하게 핵심 뜻과 신학적/문맥적 의미를 설명해줘.`;
 
           const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
             method: "POST",
@@ -1044,20 +1026,21 @@
         }
       }
 
-      const geminiWebQuery = encodeURIComponent(`${selectedVerseRef} (${selectedVerseText}) 성경 구절 원어 어원과 신학적 주석을 TDOT/TDNT/주석 출처와 함께 자세히 알려줘`);
+      // API Key가 없을 때 Gemini 웹 바로가기 안내
+      const geminiWebQuery = encodeURIComponent(`${userPromptQuery}`);
       resultBox.innerHTML += `
         <div style="background:var(--bg-subtle); border:1px solid var(--border-color); padding:16px; border-radius:8px; margin-top:12px;">
-          <h4 style="margin-bottom:8px; color:var(--primary); font-size:15px;">💡 Gemini API 키를 등록하면 앱 내에서 실시간 주석이 바로 표시됩니다.</h4>
+          <h4 style="margin-bottom:8px; color:var(--primary); font-size:15px;">💡 Gemini API 키를 등록하면 앱 내에서 바로 답변이 나옵니다.</h4>
           <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px; line-height:1.6;">
-            현재 브라우저에 Gemini API 키가 저장되어 있지 않아 실시간 원어 분석을 불러오지 못했습니다. 
-            상단 <strong>설정(⚙️)</strong> 버튼을 눌러 무료 API 키를 등록하시면 모든 구절의 원어 어원 및 학술 주석이 앱 내에 바로 생성됩니다.
+            현재 브라우저에 Gemini API 키가 저장되어 있지 않습니다.
+            상단 <strong>설정(⚙️)</strong> 버튼을 눌러 API 키를 등록하시거나, 아래 버튼을 눌러 제미나이 웹에서 바로 확인하실 수 있습니다.
           </p>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <a href="https://gemini.google.com/app?prompt=${geminiWebQuery}" target="_blank" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; background:var(--primary); color:#fff; padding:8px 14px; border-radius:6px; font-size:13px; font-weight:700;">
-              🌐 Gemini 웹에서 [${selectedVerseRef}] 심층 해설 보기
+              🌐 Gemini 웹에서 [${userPromptQuery}] 바로 확인
             </a>
             <button onclick="document.getElementById('settingsBtn').click()" style="background:var(--bg-card); color:var(--text-main); border:1px solid var(--border-color); padding:8px 14px; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer;">
-              ⚙️ API 키 등록하러 가기
+              ⚙️ API 키 등록
             </button>
           </div>
         </div>
@@ -1067,7 +1050,7 @@
     function saveApiKey() {
       const key = document.getElementById("geminiApiKeyInput").value.trim();
       localStorage.setItem("ybible_gemini_api_key", key);
-      alert("Gemini API 키가 안전하게 저장되었습니다.\n이제 'Ai' 버튼을 누르면 모든 구절의 원어 어원 및 심층 신학 주석이 실시간으로 생성됩니다.");
+      alert("Gemini API 키가 저장되었습니다.");
       document.getElementById("settingsModal").style.display = "none";
     }
 
