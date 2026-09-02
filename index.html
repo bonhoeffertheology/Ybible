@@ -166,7 +166,7 @@
       cursor: pointer;
       user-select: none;
       -webkit-user-select: none;
-      touch-action: none; /* 모바일 드래그 전용 */
+      touch-action: none;
       position: relative;
     }
 
@@ -216,21 +216,23 @@
       display: flex;
       flex-direction: column;
       padding: 18px 14px;
+      touch-action: pan-y;
     }
 
     #aiScreen.slide-in {
       transform: translateX(0);
     }
 
-    /* 본문 구절 */
+    /* 구절 선택 스타일: 파란색 왼쪽 테두리 없음 */
     .verse-item {
-      padding: 6px 4px;
+      padding: 6px 6px;
       border-radius: 6px;
       margin-bottom: 3px;
       display: flex;
       align-items: flex-start;
       gap: 6px;
       cursor: pointer;
+      border: none !important;
     }
 
     .verse-item:hover {
@@ -238,9 +240,8 @@
     }
 
     .verse-item.selected {
-      background: var(--highlight);
-      border-left: 3px solid var(--primary);
-      padding-left: 3px;
+      background: var(--highlight) !important;
+      border: none !important;
     }
 
     .verse-num {
@@ -414,11 +415,15 @@
     </div>
   </header>
 
-  <!-- 2열: 책, 장, 절 선택 -->
+  <!-- 2열: 책, 장, 절 선택 및 AI 해설창 바로가기 화살표 -->
   <nav class="nav-bar">
     <select id="bookSelect"></select>
     <select id="chapterSelect"></select>
     <select id="verseSelect"></select>
+    <!-- AI 해설창으로 바로 넘어가는 오른쪽 화살표 버튼 -->
+    <button class="tool-btn icon-only" id="goToAiBtn" title="AI 해설창 보기" style="margin-left:auto;">
+      <i data-lucide="arrow-right" style="width:18px;height:18px;"></i>
+    </button>
   </nav>
 
   <!-- 3열: 각 설치된 역본 선택 및 롱프레스 이동 바 -->
@@ -433,8 +438,9 @@
     <section class="screen-panel" id="aiScreen">
       <div class="ai-header">
         <h3 id="aiTitle" style="font-size:16px;font-weight:700;">성경 심층 신학 주석</h3>
-        <button class="tool-btn" id="aiBackBtn" style="gap:4px;">
-          <i data-lucide="arrow-left" style="width:16px;height:16px;"></i> 성경으로 돌아가기
+        <!-- 글자 없이 심플한 왼쪽 화살표 아이콘 버튼 -->
+        <button class="tool-btn icon-only" id="aiBackBtn" title="성경으로 돌아가기">
+          <i data-lucide="arrow-left" style="width:18px;height:18px;"></i>
         </button>
       </div>
       <div class="ai-result-body" id="aiResultText">해설을 불러오는 중입니다...</div>
@@ -451,10 +457,13 @@
         <button onclick="document.getElementById('settingsModal').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:20px;">&times;</button>
       </div>
 
-      <div style="margin-bottom: 14px;">
-        <label style="font-size: 13px; font-weight: 700; color: var(--text-muted);">Gemini API Key (선택)</label>
-        <input type="password" id="geminiApiKeyInput" class="api-key-input" placeholder="Gemini API 키 입력 (실시간 AI 해설)" />
-        <button class="tool-btn" style="width:100%; background:var(--primary); color:#fff; border:none;" onclick="saveApiKey()">API 키 저장</button>
+      <div style="margin-bottom: 14px; background: var(--bg-subtle); padding: 12px; border-radius: 8px;">
+        <label style="font-size: 13px; font-weight: 700; color: var(--text-main); display:block; margin-bottom:4px;">Gemini API Key 등록</label>
+        <div style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 8px;">
+          모든 구절의 원어 어원 및 심층 신학 주석을 실시간으로 생성하려면 구글 AI Studio에서 무료로 발급받은 API 키를 등록하세요.
+        </div>
+        <input type="password" id="geminiApiKeyInput" class="api-key-input" placeholder="AI Studio 발급 API 키 입력 (AIzaSy...)" style="margin-bottom:8px;" />
+        <button class="tool-btn" style="width:100%; background:var(--primary); color:#fff; border:none;" onclick="saveApiKey()">API 키 저장하기</button>
       </div>
 
       <div style="font-size: 13px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px;">설치된 역본 관리 (이름 변경 및 삭제)</div>
@@ -497,6 +506,7 @@
     }
 
     const bibleScreenEl = document.getElementById('bibleScreen');
+    const aiScreenEl = document.getElementById('aiScreen');
 
     bibleScreenEl.addEventListener('touchstart', (e) => {
       if (e.touches.length === 2) {
@@ -517,6 +527,46 @@
     bibleScreenEl.addEventListener('touchend', (e) => {
       if (e.touches.length < 2) {
         initialDistance = 0;
+      }
+    }, { passive: true });
+
+    // --- 좌우 스와이프 제스처 (손가락으로 넘기기) ---
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    // 성경 화면에서 왼쪽으로 넘기면(←) AI 창으로 이동
+    bibleScreenEl.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+      }
+    }, { passive: true });
+
+    bibleScreenEl.addEventListener('touchend', (e) => {
+      if (e.changedTouches.length === 1) {
+        const diffX = touchStartX - e.changedTouches[0].clientX;
+        const diffY = touchStartY - e.changedTouches[0].clientY;
+        if (diffX > 60 && Math.abs(diffX) > Math.abs(diffY) * 1.5) {
+          openAiScreen();
+        }
+      }
+    }, { passive: true });
+
+    // AI 해설 화면에서 오른쪽으로 넘기면(→) 성경 창으로 복귀
+    aiScreenEl.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+      }
+    }, { passive: true });
+
+    aiScreenEl.addEventListener('touchend', (e) => {
+      if (e.changedTouches.length === 1) {
+        const diffX = e.changedTouches[0].clientX - touchStartX;
+        const diffY = touchStartY - e.changedTouches[0].clientY;
+        if (diffX > 60 && Math.abs(diffX) > Math.abs(diffY) * 1.5) {
+          closeAiScreen();
+        }
       }
     }, { passive: true });
 
@@ -679,7 +729,7 @@
           const el = document.querySelector(`.verse-item[data-verse="${v}"]`);
           if (el) {
             el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            el.click(); // 해당 절 자동 선택
+            el.click();
           }
         }
       };
@@ -764,13 +814,11 @@
       });
     }
 
-    // --- 2. 역본 칩 롱프레스 터치 및 실시간 드래그 스왑 엔진 ---
     let activeDragChip = null;
     let longPressTimer = null;
     let isDragging = false;
 
     function setupRobustDragAndDrop(chip, container) {
-      // 칩 클릭 (활성/비활성 토글)
       chip.addEventListener('click', (e) => {
         if (isDragging) return;
         const id = chip.dataset.id;
@@ -785,7 +833,6 @@
         renderVerses();
       });
 
-      // 모바일 롱프레스 & 터치 이동 처리
       chip.addEventListener('touchstart', (e) => {
         if (e.touches.length > 1) return;
         isDragging = false;
@@ -794,7 +841,7 @@
           activeDragChip = chip;
           chip.classList.add('dragging');
           if (navigator.vibrate) navigator.vibrate(50);
-        }, 300); // 300ms 롱프레스
+        }, 300);
       }, { passive: true });
 
       chip.addEventListener('touchmove', (e) => {
@@ -838,7 +885,6 @@
       renderVerses();
     }
 
-    // --- 본문 구절 렌더링 및 클릭 선택 완벽 바인딩 ---
     async function renderVerses() {
       const container = document.getElementById("versesContainer");
       container.innerHTML = "";
@@ -874,7 +920,6 @@
 
       const isMulti = activeTranslations.length > 1;
 
-      // 기본적으로 첫 번째 구절 선택 상태로 초기화
       selectedVerseRef = `${BIBLE_BOOKS[currentBook]} ${currentChapter}:${sorted[0]}`;
       selectedVerseText = map.get(sorted[0])[activeTranslations[0]] || "";
 
@@ -900,12 +945,10 @@
           <div class="verse-content-box">${contentHtml}</div>
         `;
 
-        // 구절 클릭 시 선택된 구절 참조 및 본문 텍스트 즉시 갱신
         item.onclick = () => {
           document.querySelectorAll('.verse-item').forEach(el => el.classList.remove('selected'));
           item.classList.add('selected');
           selectedVerseRef = `${BIBLE_BOOKS[currentBook]} ${currentChapter}:${vNum}`;
-          // 대표 텍스트 추출 (첫 번째 활성 역본 텍스트)
           selectedVerseText = (map.get(vNum) && map.get(vNum)[activeTranslations[0]]) || item.querySelector('.verse-content-box').innerText.trim();
         };
 
@@ -913,48 +956,68 @@
       });
     }
 
-    // --- 3. Gemini API 실시간 연동 및 동적 원어 분해 주석 엔진 ---
+    // --- 화면 슬라이딩 전환 함수 ---
+    function openAiScreen() {
+      document.getElementById("bibleScreen").classList.add("slide-out");
+      document.getElementById("aiScreen").classList.add("slide-in");
+    }
+
+    function closeAiScreen() {
+      document.getElementById("bibleScreen").classList.remove("slide-out");
+      document.getElementById("aiScreen").classList.remove("slide-in");
+    }
+
+    // 상단 네비게이션바의 오른쪽 화살표(→) 버튼 클릭 시 AI 창으로 이동
+    document.getElementById("goToAiBtn").onclick = () => {
+      openAiScreen();
+    };
+
+    // AI창의 왼쪽 화살표(←) 버튼 클릭 시 성경 창으로 복귀
+    document.getElementById("aiBackBtn").onclick = () => {
+      closeAiScreen();
+    };
+
+    // --- AI 심층 신학 주석 & Gemini API 직접 연동 엔진 ---
     document.getElementById("aiBtn").onclick = async () => {
       if (!selectedVerseRef) {
         alert("해설을 보실 성경 구절을 먼저 선택해 주세요.");
         return;
       }
 
-      document.getElementById("aiTitle").textContent = `${selectedVerseRef} 원어 심층 신학 주석`;
+      document.getElementById("aiTitle").textContent = `${selectedVerseRef} 신학 주석 및 원어 분석`;
       const resultBox = document.getElementById("aiResultText");
       resultBox.innerHTML = `<div style="text-align:center; padding: 35px 0; color:var(--text-muted);">
         <i data-lucide="loader" class="spin" style="width:30px;height:30px;margin-bottom:10px;"></i><br>
         <strong>[${selectedVerseRef}]</strong><br>
-        본문 단어별 원어(히브리어/헬라어) 어근과 신학적 주석을 생성 중입니다...
+        Gemini AI가 해당 구절의 원어 어원 및 심층 신학 주석을 생성 중입니다...
       </div>`;
       lucide.createIcons();
 
-      document.getElementById("bibleScreen").classList.add("slide-out");
-      document.getElementById("aiScreen").classList.add("slide-in");
+      openAiScreen();
 
       const apiKey = localStorage.getItem("ybible_gemini_api_key") || "";
 
-      // 1) API 키가 등록되어 있을 경우 최신 Gemini 1.5/2.0 API 실시간 호출
       if (apiKey) {
         try {
-          const prompt = `당신은 최고 수준의 기독교 개혁주의 조직신학자이자 구약/신약 원어 성경 주석가입니다.
-성경 구절 "${selectedVerseRef}" (${selectedVerseText})에 대해 다음 서식에 맞춰 심도 있는 학술적 신학 주석을 작성해주세요.
+          const prompt = `당신은 최고 수준의 기독교 개혁주의 조직신학자이자 성서 원어(히브리어/헬라어) 주석가입니다.
+성경 구절 "${selectedVerseRef}" (${selectedVerseText})에 대해 다음 구조를 정확히 지켜 전문적이고 풍성한 학술적 신학 주석을 작성해주세요.
 
-반드시 아래 3단계 구조를 엄격히 지켜 마크다운으로 출력하세요:
+[필수 작성 형식]
+1. 본문 개요:
+- 본 구절이 속한 문맥과 성경 전체 구속사에서의 핵심적 위치 및 선언 내용.
 
-1. 원문 어원과 핵심 단어 분석:
-- 구약은 BHS 히브리어 원문(히브리어 글자, 알파벳 음역), 신약은 NA28 헬라어 원문(헬라어 글자, 알파벳 음역)을 제시할 것.
-- 본문의 모든 주요 핵심 단어들을 빠짐없이 분해하여, 각 단어의 [원어 표기, 음역, 기본형 어근, 문법 형태(시제/태/격 등), 신학적 함의]를 항목별로 명확하게 서술할 것.
+2. 원문 어원과 핵심 단어 분석:
+- 구약은 BHS 히브리어 원문(히브리어 표기 및 발음 음역), 신약은 NA28 헬라어 원문(헬라어 표기 및 발음 음역)을 상단에 제시할 것.
+- 본문에서 신학적으로 가장 중요한 핵심 어휘 3~5개를 선별하여, 각 단어의 [원어 표기, 음역, 기본형 어근, 문법 형태, 신학적·문맥적 의미]를 상세히 분석할 것.
 
-2. 신학적·사상적 핵심 의미:
-- 구속사적 맥락과 성경 전체 계시에서의 위치.
-- 교의학적/윤리학적 함의를 번호 목록(1, 2, 3...)으로 깊이 있게 서술할 것.
+3. 신학적·사상적 핵심 의미:
+- 구속사적 맥락, 창조/언약/그리스도 중심적 의미, 교의학적/윤리학적 함의를 번호 목록(1, 2, 3)으로 깊이 있게 서술할 것.
 
-3. 출처:
+4. 출처:
 - 본문 원문 판본(BHS 또는 NA28) 및 공인 번역본.
-- 인용 및 참고한 표준 신학 사전(TDOT, TDNT, NIDOTTE, BDAG 등) 및 권위 있는 학술 주석(WBC, NICOT, NICNT, Anchor Yale 등)을 명기할 것.`;
+- 인용 및 참고한 표준 신학 사전(TDOT, TDNT, NIDOTTE, BDAG 등) 및 권위 있는 학술 주석(WBC, NICOT, NICNT, Anchor Yale 등)을 구체적으로 명기할 것.`;
 
-          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -963,69 +1026,49 @@
           });
 
           const data = await response.json();
-          if (data.candidates && data.candidates[0].content.parts[0].text) {
+          if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts[0].text) {
             const mdText = data.candidates[0].content.parts[0].text;
             resultBox.innerHTML = marked.parse(mdText);
             return;
+          } else if (data.error) {
+            throw new Error(data.error.message || "API 호출 오류");
           }
         } catch (e) {
           console.error("Gemini API Error:", e);
+          resultBox.innerHTML = `
+            <div style="background:rgba(239,68,68,0.1); border:1px solid #ef4444; padding:12px; border-radius:8px; margin-bottom:16px;">
+              <strong style="color:#ef4444;">API 호출 실패:</strong> ${e.message}<br>
+              <span style="font-size:12px; color:var(--text-muted);">설정(⚙️) 메뉴에서 API 키가 올바른지 확인해주세요.</span>
+            </div>
+          `;
         }
       }
 
-      // 2) API 키 미등록 또는 오류 시 동적 구절 맞춤형 분석 주석 엔진 작동
-      setTimeout(() => {
-        resultBox.innerHTML = buildDynamicCommentary(selectedVerseRef, selectedVerseText);
-      }, 400);
-    };
-
-    // 구절별 맞춤형 정밀 주석 생성기
-    function buildDynamicCommentary(ref, text) {
-      const isNT = currentBook >= 39;
-      const langType = isNT ? "헬라어(Novum Testamentum Graece, NA28)" : "히브리어(Biblia Hebraica Stuttgartensia, BHS)";
-
-      // 단어 분해 생성
-      const words = text.split(/\s+/).filter(w => w.length > 0);
-      let wordAnalysisHtml = "";
-
-      words.slice(0, 5).forEach((word) => {
-        wordAnalysisHtml += `<li><strong>${word}:</strong> 원어 어근 분석을 통해 언약적 계시와 신적 행동의 주권성을 드러냅니다. 문맥상 구속사적 사건의 연속성을 보장하는 핵심 지표로 사용됩니다.</li>`;
-      });
-
-      return `
-<p><strong>${ref} 본문은 성경 전체의 구속사적 계시와 하나님의 주권적 섭리를 선언하는 구절입니다.</strong></p>
-<blockquote>"${text}"</blockquote>
-
-<h3>1. 원문 어원과 핵심 단어 분석</h3>
-<p>본 구절의 ${langType} 원문 및 주요 어휘 분석은 다음과 같습니다.</p>
-<ul>
-  ${wordAnalysisHtml}
-</ul>
-
-<h3>2. 신학적·사상적 핵심 의미</h3>
-<ol>
-  <li><strong>구속사적 맥락과 하나님의 주권:</strong> 본문은 단순한 역사적 기록을 넘어 창조주 하나님의 인격적 의지와 구속 언약이 역사 속에서 성취됨을 입증합니다.</li>
-  <li><strong>기독론적/교의학적 통일성:</strong> 신구약 전체를 관통하는 구원 역사의 일관성을 제시하며, 성도의 믿음의 기초가 상황이 아닌 하나님의 말씀에 있음을 천명합니다.</li>
-  <li><strong>실천적·윤리적 적용:</strong> 세속적 가치관에 물들지 않고 하나님의 주권적 통치에 전적으로 신뢰하며 순종하는 제자도의 삶을 요청합니다.</li>
-</ol>
-
-<hr style="border: 0; border-top: 1px solid var(--border-color); margin: 16px 0;" />
-<p style="font-size: 0.85em; color: var(--text-muted);">
-<strong>출처:</strong><br>
-• 성경 본문: ${isNT ? 'Novum Testamentum Graece (NA28)' : 'Biblia Hebraica Stuttgartensia (BHS)'}, ${ref}; 대한성서공회.<br>
-• 어원 및 신학 사전: ${isNT ? 'Theological Dictionary of the New Testament (TDNT), "Logos/Pistis"' : 'Theological Dictionary of the Old Testament (TDOT), "Bārāʾ/Berît"'}; Word Biblical Commentary (WBC).
-</p>`;
-    }
-
-    document.getElementById("aiBackBtn").onclick = () => {
-      document.getElementById("bibleScreen").classList.remove("slide-out");
-      document.getElementById("aiScreen").classList.remove("slide-in");
+      const geminiWebQuery = encodeURIComponent(`${selectedVerseRef} (${selectedVerseText}) 성경 구절 원어 어원과 신학적 주석을 TDOT/TDNT/주석 출처와 함께 자세히 알려줘`);
+      resultBox.innerHTML += `
+        <div style="background:var(--bg-subtle); border:1px solid var(--border-color); padding:16px; border-radius:8px; margin-top:12px;">
+          <h4 style="margin-bottom:8px; color:var(--primary); font-size:15px;">💡 Gemini API 키를 등록하면 앱 내에서 실시간 주석이 바로 표시됩니다.</h4>
+          <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px; line-height:1.6;">
+            현재 브라우저에 Gemini API 키가 저장되어 있지 않아 실시간 원어 분석을 불러오지 못했습니다. 
+            상단 <strong>설정(⚙️)</strong> 버튼을 눌러 무료 API 키를 등록하시면 모든 구절의 원어 어원 및 학술 주석이 앱 내에 바로 생성됩니다.
+          </p>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <a href="https://gemini.google.com/app?prompt=${geminiWebQuery}" target="_blank" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; background:var(--primary); color:#fff; padding:8px 14px; border-radius:6px; font-size:13px; font-weight:700;">
+              🌐 Gemini 웹에서 [${selectedVerseRef}] 심층 해설 보기
+            </a>
+            <button onclick="document.getElementById('settingsBtn').click()" style="background:var(--bg-card); color:var(--text-main); border:1px solid var(--border-color); padding:8px 14px; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer;">
+              ⚙️ API 키 등록하러 가기
+            </button>
+          </div>
+        </div>
+      `;
     };
 
     function saveApiKey() {
       const key = document.getElementById("geminiApiKeyInput").value.trim();
       localStorage.setItem("ybible_gemini_api_key", key);
-      alert("Gemini API 키가 저장되었습니다. 모든 구절에서 실시간 맞춤형 신학 주석이 생성됩니다.");
+      alert("Gemini API 키가 안전하게 저장되었습니다.\n이제 'Ai' 버튼을 누르면 모든 구절의 원어 어원 및 심층 신학 주석이 실시간으로 생성됩니다.");
+      document.getElementById("settingsModal").style.display = "none";
     }
 
     // --- 테마 및 환경설정 (역본 이름 변경 & 삭제) ---
@@ -1240,7 +1283,6 @@
       return verses;
     }
 
-    // --- LFA 파일 추가 및 고속 저장 ---
     document.getElementById("lfaFileInput").onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
