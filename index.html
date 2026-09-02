@@ -1,10 +1,29 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>성경 본문 & AI 해석</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>성경 뷰어 & AI 해설</title>
   <style>
+    :root {
+      --bg-color: #ffffff;
+      --text-color: #1a1a1a;
+      --panel-bg: #f8f9fa;
+      --border-color: #e2e8f0;
+      --primary-color: #2563eb;
+      --highlight-bg: #dbeafe;
+      --transition-speed: 0.4s;
+    }
+
+    [data-theme="dark"] {
+      --bg-color: #121212;
+      --text-color: #e0e0e0;
+      --panel-bg: #1e1e1e;
+      --border-color: #333333;
+      --primary-color: #3b82f6;
+      --highlight-bg: #1e3a8a;
+    }
+
     * {
       box-sizing: border-box;
       margin: 0;
@@ -12,240 +31,271 @@
     }
 
     body {
-      font-family: sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
       overflow-x: hidden;
-      background-color: #f8f9fa;
-      color: #212529;
-      transition: background-color 0.3s, color 0.3s;
-    }
-
-    body.dark-mode {
-      background-color: #121212;
-      color: #e0e0e0;
     }
 
     /* 상단 네비게이션 바 */
     header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 60px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 12px 20px;
-      background-color: #ffffff;
-      border-bottom: 1px solid #dee2e6;
+      padding: 0 20px;
+      background-color: var(--panel-bg);
+      border-bottom: 1px solid var(--border-color);
+      z-index: 100;
     }
 
-    body.dark-mode header {
-      background-color: #1e1e1e;
-      border-bottom: 1px solid #333333;
-    }
-
-    .btn-group {
+    .nav-controls {
       display: flex;
-      gap: 8px;
+      gap: 10px;
     }
 
     button {
-      padding: 8px 14px;
-      border: 1px solid #ced4da;
-      border-radius: 6px;
-      background-color: #ffffff;
-      color: inherit;
       cursor: pointer;
-      font-weight: bold;
-      transition: background-color 0.2s;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      transition: background-color 0.2s, color 0.2s;
     }
 
-    body.dark-mode button {
-      background-color: #2c2c2c;
-      border-color: #444;
+    button:hover {
+      opacity: 0.85;
     }
 
     #ai-btn {
-      background-color: #4a6cf7;
+      background-color: var(--primary-color);
       color: #ffffff;
       border: none;
     }
 
-    /* 슬라이드 뷰 컨테이너 */
-    .view-slider {
-      display: flex;
-      width: 200vw;
-      min-height: calc(100vh - 60px);
-      transition: transform 0.4s ease-in-out;
-    }
-
-    .view-slider.show-ai {
-      transform: translateX(-50vw);
-    }
-
-    /* 성경 본문 영역 (좌측 뷰) */
-    .bible-view {
+    /* 뷰포트 및 전체 화면 슬라이드 컨테이너 */
+    .viewport {
+      position: relative;
       width: 100vw;
-      padding: 24px;
-      line-height: 1.8;
+      height: calc(100vh - 60px);
+      margin-top: 60px;
+      overflow: hidden;
     }
 
+    .view-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      padding: 30px;
+      overflow-y: auto;
+      transition: transform var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* 1. 성경 본문 화면 (기본: 화면 안) */
+    #bible-view {
+      transform: translateX(0);
+    }
+
+    /* 성경 본문 화면이 왼쪽으로 퇴장할 때 */
+    #bible-view.slide-left {
+      transform: translateX(-100%);
+    }
+
+    /* 2. AI 해설 화면 (기본: 오른쪽 바깥 대기) */
+    #ai-view {
+      transform: translateX(100%);
+      background-color: var(--panel-bg);
+    }
+
+    /* AI 해설 화면이 화면 중앙으로 진입할 때 */
+    #ai-view.active {
+      transform: translateX(0);
+    }
+
+    /* 성경 구절 스타일 */
     .verse {
-      padding: 6px 10px;
-      border-radius: 4px;
+      padding: 12px 16px;
+      margin-bottom: 8px;
+      border-radius: 8px;
       cursor: pointer;
-      margin-bottom: 4px;
+      line-height: 1.6;
+      font-size: 16px;
+      border: 1px solid transparent;
+      transition: background-color 0.2s, border-color 0.2s;
     }
 
     .verse:hover {
-      background-color: rgba(0, 0, 0, 0.05);
-    }
-
-    body.dark-mode .verse:hover {
-      background-color: rgba(255, 255, 255, 0.05);
+      background-color: var(--panel-bg);
     }
 
     .verse.selected {
-      background-color: #dbeafe;
-      border-left: 4px solid #3b82f6;
+      background-color: var(--highlight-bg);
+      border-color: var(--primary-color);
+      font-weight: 500;
     }
 
-    body.dark-mode .verse.selected {
-      background-color: #1e3a5f;
-      border-left: 4px solid #60a5fa;
+    .verse-num {
+      font-weight: 700;
+      margin-right: 8px;
+      color: var(--primary-color);
     }
 
-    /* AI 대답 영역 (우측 뷰) */
-    .ai-view {
-      width: 100vw;
-      padding: 24px;
+    /* AI 응답 화면 스타일 */
+    .ai-header {
       display: flex;
-      flex-direction: column;
       justify-content: space-between;
-      background-color: inherit;
-    }
-
-    .ai-content-box {
-      background-color: #ffffff;
-      padding: 20px;
-      border-radius: 8px;
-      border: 1px solid #dee2e6;
-      line-height: 1.7;
-      white-space: pre-wrap;
-      min-height: 200px;
-    }
-
-    body.dark-mode .ai-content-box {
-      background-color: #1e1e1e;
-      border-color: #333;
-    }
-
-    .ai-footer {
-      margin-top: 24px;
-      padding-top: 12px;
-    }
-
-    .back-btn {
-      display: inline-flex;
       align-items: center;
-      gap: 6px;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .ai-content {
+      font-size: 16px;
+      line-height: 1.8;
+      white-space: pre-wrap;
+    }
+
+    .query-box {
+      padding: 16px;
+      background-color: var(--bg-color);
+      border-radius: 8px;
+      margin-bottom: 20px;
+      border: 1px solid var(--border-color);
+      font-weight: 500;
     }
   </style>
 </head>
 <body>
 
   <header>
-    <h2>성경 읽기</h2>
-    <div class="btn-group">
-      <!-- 다크모드 버튼 왼쪽에 배치된 AI 버튼 -->
-      <button id="ai-btn" onclick="requestAiInterpretation()">AI 해석</button>
-      <button id="theme-btn" onclick="toggleDarkMode()">다크모드</button>
+    <h2>성경 뷰어</h2>
+    <div class="nav-controls">
+      <button id="theme-btn">다크모드</button>
+      <button id="ai-btn">AI</button>
     </div>
   </header>
 
-  <!-- 슬라이드 컨테이너 -->
-  <div class="view-slider" id="viewSlider">
-    
-    <!-- 좌측: 성경 본문 뷰 -->
-    <section class="bible-view">
-      <div class="verse" data-ref="창1:1" onclick="selectVerse(this)">
-        <strong>창 1:1</strong> 태초에 하나님이 천지를 창조하시니라
+  <main class="viewport">
+    <!-- 1. 전체 화면 성경 창 -->
+    <section id="bible-view" class="view-screen">
+      <div class="verse" data-ref="창1:1">
+        <span class="verse-num">창 1:1</span> 태초에 하나님이 천지를 창조하시니라
       </div>
-      <div class="verse" data-ref="창1:2" onclick="selectVerse(this)">
-        <strong>창 1:2</strong> 땅이 혼돈하고 공허하며 흑암이 깊음 위에 있고 하나님의 영은 수면 위에 운행하시니라
+      <div class="verse" data-ref="창1:2">
+        <span class="verse-num">창 1:2</span> 땅이 혼돈하고 공허하며 흑암이 깊음 위에 있고 하나님의 영은 수면 위에 운행하시니라
       </div>
-      <div class="verse" data-ref="창1:3" onclick="selectVerse(this)">
-        <strong>창 1:3</strong> 하나님이 이르시되 빛이 있으라 하시니 빛이 있었고
+      <div class="verse" data-ref="창1:3">
+        <span class="verse-num">창 1:3</span> 하나님이 이르시되 빛이 있으라 하시니 빛이 있었고
       </div>
     </section>
 
-    <!-- 우측: Gemini 응답 뷰 -->
-    <section class="ai-view">
-      <div>
-        <h3 id="ai-query-title" style="margin-bottom: 16px;">AI 구절 해설</h3>
-        <div class="ai-content-box" id="aiResponseText">해석을 불러오는 중입니다...</div>
+    <!-- 2. 전체 화면 AI 응답 창 -->
+    <section id="ai-view" class="view-screen">
+      <div class="ai-header">
+        <h3 id="ai-title">Gemini 성경 해설</h3>
+        <button id="back-btn">← 성경 본문으로 돌아가기</button>
       </div>
-      <div class="ai-footer">
-        <button class="back-btn" onclick="closeAiView()">&#8592; 성경 본문으로 돌아가기</button>
-      </div>
+      <div id="ai-query" class="query-box"></div>
+      <div id="ai-result" class="ai-content"></div>
     </section>
-
-  </div>
+  </main>
 
   <script>
-    const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY"; // 본인의 Gemini API 키 입력
+    // --- 상태 관리 ---
     let selectedVerseRef = null;
+    let selectedVerseText = null;
 
-    // 구절 선택 처리
-    function selectVerse(element) {
-      document.querySelectorAll('.verse').forEach(v => v.classList.remove('selected'));
-      element.classList.add('selected');
-      selectedVerseRef = element.getAttribute('data-ref');
+    const bibleView = document.getElementById('bible-view');
+    const aiView = document.getElementById('ai-view');
+    const aiBtn = document.getElementById('ai-btn');
+    const backBtn = document.getElementById('back-btn');
+    const themeBtn = document.getElementById('theme-btn');
+    const aiQueryEl = document.getElementById('ai-query');
+    const aiResultEl = document.getElementById('ai-result');
+
+    // 1. 다크모드 / 데이모드 토글
+    themeBtn.addEventListener('click', () => {
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      if (currentTheme === 'dark') {
+        document.documentElement.removeAttribute('data-theme');
+        themeBtn.textContent = '다크모드';
+      } else {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        themeBtn.textContent = '데이모드';
+      }
+    });
+
+    // 2. 구절 선택 로직
+    document.querySelectorAll('.verse').forEach(el => {
+      el.addEventListener('click', () => {
+        document.querySelectorAll('.verse').forEach(v => v.classList.remove('selected'));
+        el.classList.add('selected');
+        selectedVerseRef = el.getAttribute('data-ref');
+        selectedVerseText = el.innerText;
+      });
+    });
+
+    // 3. 화면 전환 (성경 -> AI 창)
+    function showAiScreen() {
+      bibleView.classList.add('slide-left'); // 왼쪽 바깥으로 이동
+      aiView.classList.add('active');        // 오른쪽에서 중앙으로 진입
     }
 
-    // AI 버튼 클릭 시 처리
-    async function requestAiInterpretation() {
+    // 4. 화면 복귀 (AI 창 -> 성경)
+    function showBibleScreen() {
+      bibleView.classList.remove('slide-left');
+      aiView.classList.remove('active');
+    }
+
+    backBtn.addEventListener('click', showBibleScreen);
+
+    // 5. AI 버튼 클릭 시 처리
+    aiBtn.addEventListener('click', async () => {
       if (!selectedVerseRef) {
-        alert('해석할 성경 구절을 먼저 선택해주세요.');
+        alert('해설을 볼 성경 구절을 먼저 선택해주세요.');
         return;
       }
 
-      const promptText = `${selectedVerseRef} 무슨뜻?`;
-      document.getElementById('ai-query-title').innerText = `[${selectedVerseRef}] AI 해설`;
-      document.getElementById('aiResponseText').innerText = 'Gemini의 응답을 받아오는 중입니다...';
+      // 화면 즉시 슬라이드 전환
+      showAiScreen();
 
-      // 화면 오른쪽 슬라이드 전환 실행
-      document.getElementById('viewSlider').classList.add('show-ai');
+      const prompt = `"${selectedVerseRef}" (${selectedVerseText})은 무슨 뜻인가요? 신학적 배경과 의미를 해설해 주세요.`;
+      aiQueryEl.textContent = `질문: ${selectedVerseRef}은 무슨 뜻?`;
+      aiResultEl.textContent = "Gemini가 해설을 생성하고 있습니다...";
 
       try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{ text: promptText }]
-            }]
-          })
-        });
-
-        const data = await response.json();
-        if (data.candidates && data.candidates[0].content.parts[0].text) {
-          document.getElementById('aiResponseText').innerText = data.candidates[0].content.parts[0].text;
-        } else {
-          document.getElementById('aiResponseText').innerText = '응답을 파싱하지 못했습니다. 다시 시도해주세요.';
-        }
-      } catch (error) {
-        document.getElementById('aiResponseText').innerText = 'AI 호출 중 오류가 발생했습니다: ' + error.message;
+        // 실제 API 연동 시 fetchGeminiExplanation(prompt) 형태로 호출
+        const explanation = await mockGeminiApi(prompt);
+        aiResultEl.textContent = explanation;
+      } catch (err) {
+        aiResultEl.textContent = "해설을 불러오는 중 오류가 발생했습니다.";
       }
-    }
+    });
 
-    // 성경 화면 복귀 처리
-    function closeAiView() {
-      document.getElementById('viewSlider').classList.remove('show-ai');
-    }
-
-    // 다크모드 토글
-    function toggleDarkMode() {
-      document.body.classList.toggle('dark-mode');
+    // Gemini API 호출 목업 (실제 환경에서는 본인의 API 키와 엔드포인트 연결)
+    async function mockGeminiApi(prompt) {
+      return new Promise(resolve => {
+        setTimeout(() => {
+          resolve(
+            `[${selectedVerseRef} 해설]\n\n` +
+            `1. 핵심 신학적 의미:\n` +
+            `창세기 1장 1절은 존재하는 모든 만물의 근원이 하나님께 있음을 선언하는 구절입니다. '창조하시니라'에 해당하는 히브리어 동사 '바라(בָּרָא)'는 오직 하나님만이 주어로 사용되며, 무(無)에서의 창조(Creatio ex nihilo)를 나타냅니다.\n\n` +
+            `2. 본문 해석:\n` +
+            `이 구절은 세상의 시작과 역사의 출발점이 우연이나 혼돈이 아닌 하나님의 주권적 의지와 목적에 의한 것임을 분명히 드러냅니다.`
+          );
+        }, 800);
+      });
     }
   </script>
-
 </body>
 </html>
